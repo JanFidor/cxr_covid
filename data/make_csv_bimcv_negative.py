@@ -174,7 +174,10 @@ def main():
                                     raise e
                             series_description = series_description.upper()
                             series_descriptions.add(series_description)
-                            projection = series_description_map[series_description]
+                            try:
+                                projection = series_description_map[series_description]
+                            except:
+                                continue
                             entry['projection'] = projection
 
                             # these images are manually set to lateral
