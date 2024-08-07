@@ -6,7 +6,6 @@ import pandas
 import sklearn.model_selection
 from PIL import Image
 import random
-from torchvision import transforms
 
 from datasets.cxrdataset import CXRDataset
 import datasets.padchestmap as padchestmap
@@ -45,6 +44,63 @@ CORRUPTED=['216840111366964013686042548532013208193054515_02-026-007.png',
            '216840111366964012819207061112010306085429121_04-020-102.png',
            '216840111366964012819207061112010315104455352_04-024-184.png',
            '216840111366964012819207061112010307142602253_04-014-084.png']
+
+CORRUPTED = [
+    "216840111366964013590140476722013058110301622_02-056-111.png",
+    "216840111366964013686042548532013208193054515_02-026-007.png",
+    "216840111366964013590140476722013049100117076_02-063-097.png",
+    "216840111366964013649110343042013092101343018_02-075-146.png",
+    "216840111366964013962490064942014134093945580_01-178-104.png",
+    "216840111366964013829543166512013353113303615_02-092-190.png",
+    "216840111366964013590140476722013028161046120_02-015-149.png",
+    "216840111366964013590140476722013043111952381_02-065-198.png",
+    "216840111366964013962490064942014134093945580_01-178-104.png",
+    "216840111366964013451228379692012292135010783_01-116-086.png",
+    "216840111366964013962490064942014105133405147_01-186-101.png",
+    "216840111366964013916396606442014049131810760_01-180-132.png",
+    "216840111366964013375835044302012145113844059_01-144-136.png",
+    "216840111366964013340662495472012115112320210_01-076-163.png",
+    "216840111366964013916396606442014048133907286_01-180-160.png",
+    "216840111366964014008416513202014185133458698_01-162-150.png",
+    "216840111366964013389126595622012157143239375_01-142-113.png",
+    "216840111366964013297909654432012058113356979_01-082-016.png",
+    "216840111366964013340662495472012107182402450_01-113-175.png",
+    "216840111366964013217898866992012023080746580_01-047-085.png",
+    "216840111366964013217898866992012017122006731_01-047-071.png",
+    "216840111366964013307756408102012069084921561_01-082-066.png",
+    "216840111366964013916396606442014049135743646_01-180-170.png",
+    "216840111366964013534861372972012347084841495_01-134-073.png",
+    "216840111366964013340662495472012104135640944_01-113-140.png",
+    "216840111366964013515091760022012320105207353_01-150-199.png",
+    "216840111366964013340662495472012117144634987_01-113-162.png",
+    "216840111366964013217898866992012017155648118_01-047-028.png",
+    "216840111366964013340662495472012121175635468_01-071-020.png",
+    "216840111366964012819207061112010306085429121_04-020-102.png",
+    "216840111366964013076187734852011287092959219_00-195-171.png",
+    "216840111366964012558082906712009301143450268_00-075-157.png",
+    "216840111366964012989926673512011101154138555_00-191-086.png",
+    "216840111366964012339356563862009072111404053_00-043-192.png",
+    "216840111366964012283393834152009033102258826_00-059-087.png",
+    "216840111366964012487858717522009280135853083_00-075-001.png",
+    "216840111366964012283393834152009033140208626_00-059-118.png",
+    "216840111366964012339356563862009068084200743_00-045-105.png",
+    "216840111366964012558082906712009300162151055_00-078-079.png",
+    "216840111366964013076187734852011178154626671_00-145-086.png",
+    "216840111366964012959786098432011033083840143_00-176-115.png",
+    "216840111366964012989926673512011132200139442_00-157-099.png",
+    "216840111366964012989926673512011151082430686_00-157-045.png",
+    "216840111366964012373310883942009117084022290_00-064-025.png",
+    "216840111366964013076187734852011291090445391_00-196-188.png",
+    "216840111366964012819207061112010307142602253_04-014-084.png",
+    "216840111366964012819207061112010315104455352_04-024-184.png",
+    "216840111366964012989926673512011074122523403_00-163-058.png",
+    "216840111366964012373310883942009152114636712_00-102-045.png",
+    "216840111366964012989926673512011083134050913_00-168-009.png",
+    "216840111366964012558082906712009327122220177_00-102-064.png",
+    "216840111366964012373310883942009180082307973_00-097-011.png",
+    "216840111366964012819207061112010281134410801_00-129-131.png",
+    "216840111366964012373310883942009170084120009_00-097-074.png"
+]
 
 def grouped_split(dataframe, random_state=None, test_size=0.05):
     '''
@@ -157,13 +213,11 @@ class PadChestDataset(CXRDataset):
                 is chosen for compatibility with classifiers trained on the 
                 ChestX-ray14 data.
         '''
+        super().__init__()
+
         self.fold = fold
         self.labelstyle = labels.lower()
-        self.transform = self._transforms[fold]
-        self.path_to_images = "data/PadChest/"
-        self.path_to_labels = os.path.join(self.path_to_images, 
-                "PADCHEST_chest_x_ray_images_labels_160K_01.02.19.csv")
-        self.path_to_images = os.path.join(self.path_to_images, 'images')
+        self.path_to_labels = os.path.join(self.label_dir, "PADCHEST_chest_x_ray_images_labels_160K_01.02.19.csv")
         self.pneumo = pneumo
 
         # Load files containing labels, and perform train/valid split if necessary
@@ -249,34 +303,16 @@ class PadChestDataset(CXRDataset):
                              .format(labels) +\
                              ' Must be one of "CheXpert" or "ChestX-ray14"')
 
+    @property
+    def dataset_name(self):
+        return "padchest"
+
     def __getitem__(self, idx):
-        image = self._raw_image_from_disk(idx)
-        # manually convert to 8-bit image. This happens with the RGB 
-        # conversion anyway, but PIL has a weird thresholding behavior with 
-        # direct RGB conversion.
-        image = numpy.array(image)
-        image = image/(2**8)
-        image = image.astype(numpy.uint8)
-        image = Image.fromarray(image, mode='L')
-
-        image = image.convert('RGB')
-
-        if self.transform:
-            image = self.transform(image)
-
+        name = self.df.ImageID.iloc[idx]
+        image = self._raw_image_from_disk(name)
         labels = self.get_labels(idx)
 
         return (image, labels, 0, 0)
-
-    def _raw_image_from_disk(self, idx):
-        '''
-        Retrieve the raw PIL image from storage.
-        '''
-        image = Image.open(
-            os.path.join(
-                self.path_to_images,
-                self.df.ImageID.iloc[idx]))
-        return image
 
     def _parse_labels(self, imageid):
         '''
@@ -359,14 +395,3 @@ class PadChestDataset(CXRDataset):
                 label[i] = 1
         return label
 
-    def get_all_labels(self):
-        '''
-        Return a numpy array of shape (n_samples, n_dimensions) that includes 
-        the ground-truth labels for all samples.
-        '''
-        ndim = len(self.labels)
-        nsamples = len(self)
-        output = numpy.zeros((nsamples, ndim))
-        for isample in range(len(self)):
-            output[isample] = self.get_labels(isample)
-        return output

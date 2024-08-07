@@ -13,16 +13,19 @@ class BIMCVNegativeDataset(BIMCVCOVIDDataset):
                 include_unknown_labels=include_unknown_labels, initialize_h5=initialize_h5, covid_labels=covid_labels,
                 labels=labels)
 
+    @property
+    def dataset_name(self):
+        return "bimcv-"
+
     def _set_datapaths(self):
-        self.datapath = 'data/bimcv-'
-        self.labelpath = 'derivatives/labels/labels_SARS-cov-2_nega.tsv'
-        # leave the same as bimcv-covid-19+ for now
+        label_path = os.path.join(self.label_dir, 'derivatives/labels/labels_SARS-cov-2_nega.tsv')
+        df_path = os.path.join(self.label_dir, 'BIMCV-COVID-19-negative.csv')
         self.unknown_label_path = 'datasets/bimcv_covid_unknown_labels.txt'
-        self.labeldf = pandas.read_csv(os.path.join(self.datapath, self.labelpath), delimiter='\t')
-        self.h5path = 'data/bimcv-/bimcv-.h5'
-        self.df = pandas.read_csv(os.path.join(self.datapath, 'BIMCV-COVID-19-negative.csv'))
-        # Not available for now
+        
+        self.labeldf = pandas.read_csv(label_path, delimiter='\t')
+        self.df = pandas.read_csv(df_path)
         self.manual_projection_label_path = "datasets/bimcv_covid_manual_projection_labels.yml"
+
 
     def add_covid_label(self, findings):
         # NO samples are covid-19+

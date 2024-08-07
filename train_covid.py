@@ -14,20 +14,25 @@ import pandas
 import sklearn.metrics
 
 from models import CXRClassifier
-from datasets import ChestXray14H5Dataset, PadChestH5Dataset
-from datasets import GitHubCOVIDDataset, BIMCVCOVIDDataset
-from datasets import BIMCVNegativeDataset
-from datasets import DomainConfoundedDataset
+from datasets import (
+    GitHubCOVIDDataset,
+    BIMCVCOVIDDataset,
+    ChestXray14Dataset,
+    PadChestDataset,
+    BIMCVNegativeDataset, 
+    DomainConfoundedDataset
+)
+
 
 def load_overlap(path="data/bimcv-/listjoin_ok.tsv"):
     neg_overlap_map = {}
     pos_overlap_map = {}
-    with open(path, 'r') as handle:
-        handle.readline()
-        for line in handle:
-            idx, neg_id, pos_id = line.split()
-            neg_overlap_map[neg_id] = idx
-            pos_overlap_map[pos_id] = idx
+    # with open(path, 'r') as handle:
+    #     handle.readline()
+    #     for line in handle:
+    #         idx, neg_id, pos_id = line.split()
+    #         neg_overlap_map[neg_id] = idx
+    #         pos_overlap_map[pos_id] = idx
     return neg_overlap_map, pos_overlap_map
 
 def ds3_grouped_split(df1, df2, random_state=None, test_size=0.05):
@@ -116,12 +121,12 @@ def _find_index(ds, desired_label):
 
 def train_dataset_1(seed, alexnet=False, freeze_features=False):
     trainds = DomainConfoundedDataset(
-            ChestXray14H5Dataset(fold='train', labels='chestx-ray14', random_state=seed),
+            ChestXray14Dataset(fold='train', labels='chestx-ray14', random_state=seed),
             GitHubCOVIDDataset(fold='train', labels='chestx-ray14', random_state=seed)
             )
 
     valds = DomainConfoundedDataset(
-            ChestXray14H5Dataset(fold='val', labels='chestx-ray14', random_state=seed),
+            ChestXray14Dataset(fold='val', labels='chestx-ray14', random_state=seed),
             GitHubCOVIDDataset(fold='val', labels='chestx-ray14', random_state=seed)
             )
 
@@ -135,7 +140,7 @@ def train_dataset_1(seed, alexnet=False, freeze_features=False):
     classifier = CXRClassifier()
     classifier.train(trainds,
                 valds,
-                max_epochs=30,
+                max_epochs=2,
                 lr=0.01, 
                 weight_decay=1e-4,
                 logpath=logpath,
@@ -146,11 +151,11 @@ def train_dataset_1(seed, alexnet=False, freeze_features=False):
 
 def train_dataset_2(seed, alexnet=False, freeze_features=False):
     trainds = DomainConfoundedDataset(
-            PadChestH5Dataset(fold='train', labels='chestx-ray14', random_state=seed),
+            PadChestDataset(fold='train', labels='chestx-ray14', random_state=seed),
             BIMCVCOVIDDataset(fold='train', labels='chestx-ray14', random_state=seed)
             )
     valds = DomainConfoundedDataset(
-            PadChestH5Dataset(fold='val', labels='chestx-ray14', random_state=seed),
+            PadChestDataset(fold='val', labels='chestx-ray14', random_state=seed),
             BIMCVCOVIDDataset(fold='val', labels='chestx-ray14', random_state=seed)
             )
 
@@ -213,6 +218,7 @@ def train_dataset_3(seed, alexnet=False, freeze_features=False):
                 valds,
                 max_epochs=30,
                 lr=0.01, 
+                batch_size=1024,
                 weight_decay=1e-4,
                 logpath=logpath,
                 checkpoint_path=checkpointpath,
@@ -224,11 +230,11 @@ def main():
     parser = argparse.ArgumentParser(description='Training script for COVID-19 '
             'classifiers. Make sure that datasets have been set up before '
             'running this script. See the README file for more information.')
-    parser.add_argument('--dataset', dest='dataset', type=int, default=1, required=False,
+    parser.add_argument('--dataset', dest='dataset', type=int, default=2, required=False,
                         help='The dataset number on which to train. Choose "1" or "2" or "3".')
     parser.add_argument('--seed', dest='seed', type=int, default=30493, required=False,
                         help='The random seed used to generate train/val/test splits')
-    parser.add_argument('--network', dest='network', type=str, default='densenet121', required=False,
+    parser.add_argument('--network', dest='network', type=str, default='logistic', required=False,
                         help='The network type. Choose "densenet121", "logistic", or "alexnet".')
     parser.add_argument('--device-index', dest='deviceidx', type=int, default=None, required=False,
                         help='The index of the GPU device to use. If None, use the default GPU.')

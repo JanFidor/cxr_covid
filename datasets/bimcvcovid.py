@@ -9,7 +9,7 @@ import re
 import sklearn.model_selection
 import torch
 import datasets.padchestmap as padchestmap
-from datasets.cxrdataset import CXRDataset, H5Dataset
+from datasets.cxrdataset import CXRDataset
 from PIL import Image
 
 padchesttochexpert = padchestmap.padchesttochexpert
@@ -81,7 +81,7 @@ def _get_unique_patient_ids(dataframe):
     return ids
 
 
-class BIMCVCOVIDDataset(H5Dataset, CXRDataset):
+class BIMCVCOVIDDataset(CXRDataset):
     '''
     projection labels include AP, PA, LAT, and AP_SUPINE (based on DICOM data).
       if 'include_unknown_projections == True' then the additional hand-labeled 
@@ -97,6 +97,9 @@ class BIMCVCOVIDDataset(H5Dataset, CXRDataset):
           images will be COVID positive. If 'radiologic', the COVID label will
           be based on presence of radiological evidence of COVID.
         '''
+
+        super().__init__()
+        
         self.labelstyle = labels.lower()
         if self.labelstyle == 'chexpert':
             self.labels = [
@@ -164,8 +167,6 @@ class BIMCVCOVIDDataset(H5Dataset, CXRDataset):
                 self.df = self.df[~self.df['path'].isin(unknown_paths)]
         if not fold in ['train', 'val', 'test', 'all']:
             raise ValueError("Invalid fold: {:s}".format(fold))
-        self._transforms['all'] = self._transforms['val']
-        self.transform = self._transforms[fold]
         if fold == 'all':
             pass
         else:
@@ -202,80 +203,25 @@ class BIMCVCOVIDDataset(H5Dataset, CXRDataset):
         if initialize_h5:
             self.init_worker(None)
 
+    @property
+    def dataset_name(self):
+        return "bimcv+"
+
     def _set_datapaths(self):
-        self.datapath = 'data/bimcv+'
-        self.labelpath = 'derivatives/labels/labels_covid19_posi.tsv'
+        label_path = os.path.join(self.label_dir, 'derivatives/labels/labels_covid19_posi.tsv')
+        df_path = os.path.join(self.label_dir, 'bimcv+.csv')
         self.unknown_label_path = 'datasets/bimcv_covid_unknown_labels.txt'
-        self.labeldf = pandas.read_csv(os.path.join(self.datapath, self.labelpath), delimiter='\t')
-        self.h5path = 'data/bimcv+/bimcv+.h5'
-        self.df = pandas.read_csv(os.path.join(self.datapath, 'bimcv+.csv'))
+        
+        self.labeldf = pandas.read_csv(label_path, delimiter='\t')
+        self.df = pandas.read_csv(df_path)
         self.manual_projection_label_path = "datasets/bimcv_covid_manual_projection_labels.yml"
 
-    def init_worker(self, worker_id):
-        self.h5 = h5py.File(self.h5path, 'r', swmr=True)
-
     def __getitem__(self, idx):
-        UINT8_MAX = 255 
-
-        image = self._raw_image_from_disk(idx)
-        imagename = self.df.path.iloc[idx].split('/')[-1]
-        if imagename in SKIP_WINDOWING:
-            pass
-        else:
-            image = numpy.array(image, dtype=numpy.int64)
-            # Use LUT if we have it 
-            lut = self.df.lut.iloc[idx]
-            if isinstance(lut, list):
-                lut_min = int(self.df.lut_min.iloc[idx])
-                lut = numpy.array(lut)
-                lut = numpy.concatenate((numpy.ones(lut_min)*lut[0],
-                                         lut,
-                                         numpy.ones(65536-lut_min-len(lut))*lut[-1]), axis=0)
-                image = lut[image]
-                if self.df.rescale_slope.iloc[idx]:
-                    image *= self.df.rescale_slope.iloc[idx] + self.df.rescale_intercept.iloc[idx]
-                max_ = 2**self.df.bits_stored.iloc[idx]-1
-                image = image.astype(numpy.float64)/max_
-            else: # use window data
-                window_center = self.df.window_center.iloc[idx]
-                window_width = self.df.window_width.iloc[idx]
-                window_min = int(window_center - window_width/2)
-                image -= window_min
-                image = image.astype(numpy.float64)*1/window_width
-            # clip
-            image[image<0] = 0
-            image[image>1] = 1
-            image = (image*UINT8_MAX).astype(numpy.uint8)
-
-            # invert if needed
-            photometric_interpretation = self.df.photometric_interpretation.iloc[idx]
-            if photometric_interpretation == 'MONOCHROME1':
-                image = UINT8_MAX-image
-            elif photometric_interpretation == 'MONOCHROME2':
-                image = image
-            else:
-                raise ValueError('unknown photometric interpretation: {:s}'.format(photometric_interpretation))
-            if imagename in FLIP:
-                image = numpy.flipud(image)
-            try:
-                image = Image.fromarray(image, mode='L')
-            except ValueError:
-                image = Image.fromarray(image, mode='RGB')
-        image = image.convert('RGB')
-
-        if self.transform:
-            image = self.transform(image)
-        label = self.get_labels(idx)
+        name = self.df.path.iloc[idx].split('/')[-1]
+        image = self._raw_image_from_disk(name)
+        
+        label = self._get_labels(idx)
         return image, label, 0, 0 
-
-    def _raw_image_from_disk(self, idx):
-        '''
-        Retrieve the raw PIL image from storage.
-        '''
-        imagename = self.df.path.iloc[idx].split('/',1)[1]
-        data = self.h5['images'].get(imagename)
-        image = Image.open(io.BytesIO(numpy.array(data)))
-        return image
 
     def add_covid_label(self, findings):
         # ALL samples are covid-19+
@@ -283,7 +229,7 @@ class BIMCVCOVIDDataset(H5Dataset, CXRDataset):
             findings.append('COVID 19')
         return findings
 
-    def get_labels(self, idx):
+    def _get_labels(self, idx):
         '''
         Get the labels for index ``idx``.
 
@@ -367,9 +313,3 @@ class BIMCVCOVIDDataset(H5Dataset, CXRDataset):
             else:
                 findings.remove("unchanged")
         return findings
-
-    def get_all_labels(self):
-        arr = numpy.zeros((len(self), len(self.labels)))
-        for i in range(len(self)):
-            arr[i] = self.get_labels(i)
-        return arr

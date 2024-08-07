@@ -68,8 +68,8 @@ def _convert_dataframe(df):
                 'Patient ID']
     
     ## maps sets of possible findings to labels
-    covid_set = ['COVID-19','COVID-19, ARDS']
-    pneumo_set = ['ARDS',
+    covid_set = {'COVID-19','COVID-19, ARDS'}
+    pneumo_set = {'ARDS',
                  'Bacterial',
                  'Chlamydophila',
                  'E.Coli',
@@ -82,18 +82,18 @@ def _convert_dataframe(df):
                  'Pneumonia',
                  'SARS',
                  'Streptococcus',
-                 'Varicella']
-    healthy_set = ['No Finding']
+                 'Varicella'}
+    healthy_set = {'No Finding',}
     
     # make new DF to hold labels
     new_data = numpy.zeros((df.shape[0],len(cols)))
     new_df = pandas.DataFrame(data=new_data,columns=cols,index=df.filename)
     
     for i, (irow, row) in enumerate(df.iterrows()):
-        
-        if row['finding'] in covid_set:
+        findings = set(row['finding'].split("/"))
+        if len(findings.intersection(covid_set)) != 0:
             new_df.iloc[i]['COVID'] = 1
-        elif row['finding'] in pneumo_set:
+        elif len(findings.intersection(pneumo_set)) != 0:
             new_df.iloc[i]['Pneumonia'] = 1
         
         if row['intubation_present'] == 'Y':
@@ -165,13 +165,11 @@ class GitHubCOVIDDataset(CXRDataset):
                 is chosen for compatibility with classifiers trained on the 
                 ChestX-ray14 data.
         '''
-
-        self.transform = self._transforms[fold]
-        self.path_to_images = "data/GitHub-COVID/images/"
+        super().__init__()
         self.has_appa = False
 
         # Load files containing labels, and perform train/valid split if necessary
-        metadatapath = "data/GitHub-COVID/metadata.csv"
+        metadatapath = os.path.join(self.label_dir, "metadata.csv")
         self.df = pandas.read_csv(metadatapath)
         self.df = _convert_dataframe(self.df)
         
@@ -231,3 +229,7 @@ class GitHubCOVIDDataset(CXRDataset):
             raise ValueError('Invalid value of keyword argument "labels": {:s}.'
                              .format(labels) +\
                              ' Must be one of "CheXpert" or "ChestX-ray14"')
+
+    @property
+    def dataset_name(self):
+        return "GitHub-COVID"

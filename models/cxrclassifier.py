@@ -139,14 +139,12 @@ class CXRClassifier(object):
                 train_dataset,
                 batch_size=batch_size,
                 shuffle=True,
-                num_workers=2,
-                worker_init_fn=train_dataset.init_worker)
+                num_workers=2,)
         val_dataloader = torch.utils.data.DataLoader(
                 val_dataset,
                 batch_size=batch_size,
                 shuffle=False,
-                num_workers=2,
-                worker_init_fn=val_dataset.init_worker)
+                num_workers=2,)
 
         # Build the model
         if scratch_train:
@@ -208,6 +206,9 @@ class CXRClassifier(object):
         loss = 0
         for batch in tqdm(train_dataloader, leave=False):
             inputs, labels, _, ds = batch
+
+            if 1 in set(labels[:, -1].tolist()):
+                damn = True
             # batch size may differ from batch_size for the last  
             # batch in an epoch
             current_batch_size = inputs.shape[0]
@@ -240,6 +241,9 @@ class CXRClassifier(object):
             # batch size may differ from batch_size for the last  
             # batch in an epoch
             current_batch_size = inputs.shape[0]
+
+            if 1 in set(labels[:, -1].tolist()):
+                damn = True
 
             # Transfer inputs (images) and labels (arrays of ints) to 
             # GPU

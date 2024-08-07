@@ -163,18 +163,17 @@ class ChestXray14Dataset(CXRDataset):
                 is chosen for compatibility with classifiers trained on the 
                 ChestX-ray14 data.
         '''
-
+        super().__init__()
         self.fold = fold
 
-        self.transform = self._transforms[fold]
-        self.path_to_images = "data/ChestX-ray14/images/"
         self.has_appa = False
         self.pneumo = pneumo
 
         # Load files containing labels, and perform train/valid split if necessary
         labelpath = os.path.join(
-             self.path_to_images,
-             '../labels/Data_Entry_2017.csv')
+             self.label_dir,
+             'Data_Entry_2017.csv'
+        )
 
         # read in the csv file with labels for all the images
         self.df = pandas.read_csv(labelpath)
@@ -184,8 +183,8 @@ class ChestXray14Dataset(CXRDataset):
             # Path to the file containing a list of all images in the train and
             # test folds
             foldpath = os.path.join(
-                    self.path_to_images,
-                    '../labels/train_val_list.txt')
+                    self.label_dir,
+                    'train_val_list.txt')
             # Read the file and convert to a list of strings, e.g., 
             # ['00000001_000.png', '00000001_001.png', ...]
             folddf = pandas.read_csv(foldpath, names=["Image Index"])
@@ -218,8 +217,8 @@ class ChestXray14Dataset(CXRDataset):
         elif self.fold == 'test':
             # Follow the same procedure as above to select the test fold
             foldpath = os.path.join(
-                    self.path_to_images,
-                    '../labels/test_list.txt')
+                    self.label_dir,
+                    'test_list.txt')
             folddf = pandas.read_csv(foldpath, names=["Image Index"])
             foldlist = folddf["Image Index"].values.tolist()
             self.df = self.df.loc[foldlist, :]
@@ -271,3 +270,6 @@ class ChestXray14Dataset(CXRDataset):
                              .format(labels) +\
                              ' Must be one of "CheXpert" or "ChestX-ray14"')
         
+    @property
+    def dataset_name(self):
+        return "ChestX-ray14"
