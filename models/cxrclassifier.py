@@ -290,7 +290,7 @@ class CXRClassifier(object):
         return opt
 
     def load_checkpoint(self, path, load_optimizer=False):
-        checkpoint = torch.load(path)
+        checkpoint = torch.load(path, weights_only=True)
         self.model = checkpoint['model']
         if load_optimizer:
             self.optimizer.load_state_dict(checkpoint['optimizer'])

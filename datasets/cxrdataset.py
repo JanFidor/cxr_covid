@@ -36,7 +36,7 @@ class CXRDataset(torch.utils.data.Dataset, ABC):
     def _raw_image_from_disk(self, name):
         tensor_name = Path(name).with_suffix('.pt')
         tensor_path = os.path.join(self.tensor_dir, tensor_name)
-        tensor = torch.load(tensor_path)
+        tensor = torch.load(tensor_path, weights_only=True)
         return tensor
 
     def _get_label(self, idx):
