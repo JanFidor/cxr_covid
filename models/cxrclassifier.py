@@ -139,12 +139,12 @@ class CXRClassifier(object):
                 train_dataset,
                 batch_size=batch_size,
                 shuffle=True,
-                num_workers=2,)
+                num_workers=1,)
         val_dataloader = torch.utils.data.DataLoader(
                 val_dataset,
                 batch_size=batch_size,
                 shuffle=False,
-                num_workers=2,)
+                num_workers=1,)
 
         # Build the model
         if scratch_train:
