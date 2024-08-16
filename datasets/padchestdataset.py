@@ -148,6 +148,7 @@ class PadChestDataset(CXRDataset):
     def __init__(
             self,
             fold,
+            augments=None,
             include_lateral=False,
             random_state=30493,
             labels='CheXpert',
@@ -213,7 +214,7 @@ class PadChestDataset(CXRDataset):
                 is chosen for compatibility with classifiers trained on the 
                 ChestX-ray14 data.
         '''
-        super().__init__()
+        super().__init__(augments)
 
         self.fold = fold
         self.labelstyle = labels.lower()

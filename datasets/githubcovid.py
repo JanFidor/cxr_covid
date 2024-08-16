@@ -109,6 +109,7 @@ class GitHubCOVIDDataset(CXRDataset):
     def __init__(
             self,
             fold,
+            augments=None,
             random_state=30493,
             labels='CheXpert'):
         '''
@@ -165,7 +166,7 @@ class GitHubCOVIDDataset(CXRDataset):
                 is chosen for compatibility with classifiers trained on the 
                 ChestX-ray14 data.
         '''
-        super().__init__()
+        super().__init__(augments)
         self.has_appa = False
 
         # Load files containing labels, and perform train/valid split if necessary

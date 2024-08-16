@@ -86,7 +86,7 @@ class BIMCVCOVIDDataset(CXRDataset):
       if 'include_unknown_projections == True' then the additional hand-labeled 
       projections 'frontal' and 'lateral' will be included. 
     '''
-    def __init__(self, fold, random_state=30493, include_lateral=False, 
+    def __init__(self, fold, augments=None, random_state=30493, include_lateral=False, 
                  include_unknown_projections=False, include_ap_supine=False,
                  include_unknown_labels=False, initialize_h5=False, covid_labels='molecular',
                  labels='chexpert', projection=None):
@@ -97,7 +97,7 @@ class BIMCVCOVIDDataset(CXRDataset):
           be based on presence of radiological evidence of COVID.
         '''
 
-        super().__init__()
+        super().__init__(augments)
         
         self.labelstyle = labels.lower()
         if self.labelstyle == 'chexpert':
@@ -266,6 +266,12 @@ class BIMCVCOVIDDataset(CXRDataset):
             if self.labels[i] != "N/A" and self.labels[i] in labels:
                 label[i] = 1
         return label
+    
+    def get_all_labels(self):
+        arr = numpy.zeros((len(self), len(self.labels)))
+        for i in range(len(self)):
+            arr[i] = self._get_labels(i)
+        return arr
 
     def _parse_labels(self, idx):
         '''

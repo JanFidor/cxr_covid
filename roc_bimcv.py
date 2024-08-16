@@ -8,7 +8,7 @@ import numpy
 import sklearn.metrics
 
 from models import CXRClassifier
-from datasets import ChestXray14H5Dataset, PadChestH5Dataset
+from datasets import ChestXray14Dataset, PadChestDataset
 from datasets import GitHubCOVIDDataset, BIMCVCOVIDDataset
 from datasets import BIMCVNegativeDataset
 from datasets import DomainConfoundedDataset
@@ -48,7 +48,7 @@ ds3_checkpoints = \
 
 def plot(ax, checkpointpath, seed, legend=False):
     githubcxr14_testds = DomainConfoundedDataset(
-            ChestXray14H5Dataset(fold='test', labels='chestx-ray14', random_state=seed),
+            ChestXray14Dataset(fold='test', labels='chestx-ray14', random_state=seed),
             GitHubCOVIDDataset(fold='test', labels='chestx-ray14', random_state=seed)
             )
 
@@ -56,6 +56,7 @@ def plot(ax, checkpointpath, seed, legend=False):
             BIMCVNegativeDataset(fold='test', labels='chestx-ray14', random_state=seed),
             BIMCVCOVIDDataset(fold='test', labels='chestx-ray14', random_state=seed)
             )
+
 
     # Unlike the other datasets, there is overlap in patients between the
     # BIMCV-COVID-19+ and BIMCV-COVID-19- datasets, so we have to perform the 
@@ -66,6 +67,8 @@ def plot(ax, checkpointpath, seed, legend=False):
             BIMCVNegativeDataset(fold='all', labels='chestx-ray14', random_state=seed),
             BIMCVCOVIDDataset(fold='all', labels='chestx-ray14', random_state=seed)
             )
+    
+    bimcv_true = bimcv_testds.get_all_labels()
     # split on a per-patient basis
     trainvaldf1, testdf1, trainvaldf2, testdf2 = ds3_grouped_split(bimcv_testds.ds1.df, bimcv_testds.ds2.df, random_state=seed)
 

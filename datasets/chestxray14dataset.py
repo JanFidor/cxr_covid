@@ -100,6 +100,7 @@ class ChestXray14Dataset(CXRDataset):
     def __init__(
             self,
             fold,
+            augments=None,
             random_state=30493,
             labels='ChestX-ray14',
             pneumo=None,
@@ -163,7 +164,7 @@ class ChestXray14Dataset(CXRDataset):
                 is chosen for compatibility with classifiers trained on the 
                 ChestX-ray14 data.
         '''
-        super().__init__()
+        super().__init__(augments)
         self.fold = fold
 
         self.has_appa = False

@@ -15,9 +15,10 @@ class CXRDataset(torch.utils.data.Dataset, ABC):
     Base class for chest radiograph datasets.
     '''
 
-    def __init__(self):
+    def __init__(self, augments):
         self.tensor_dir = os.path.join("data/tensors", self.dataset_name)
         self.label_dir = os.path.join("data/labels", self.dataset_name)
+        self.augments = augments
 
     @property
     @abstractmethod
@@ -37,6 +38,8 @@ class CXRDataset(torch.utils.data.Dataset, ABC):
         tensor_name = Path(name).with_suffix('.pt')
         tensor_path = os.path.join(self.tensor_dir, tensor_name)
         tensor = torch.load(tensor_path, weights_only=True)
+        if self.augments: 
+            tensor = self.augments(tensor)
         return tensor
 
     def _get_label(self, idx):
