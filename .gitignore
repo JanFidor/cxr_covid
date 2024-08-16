@@ -1,8 +1,14 @@
 **/__pycache__/*
 data/tensors/
 data/labels/
+data/zips
 
 checkpoints/
 images/
 wandb/
 logs/
+
+/slurm_out
+/slurm_err
+
+**.sh
