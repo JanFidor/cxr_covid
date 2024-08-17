@@ -129,7 +129,7 @@ class CXRViewClassifier(CXRClassifier):
                     if best_loss is None or valloss < best_loss:
                         best_epoch = i_epoch
                         best_loss = valloss
-                        self._checkpoint(i_epoch, valloss)
+                        self.checkpoint()
                     # If the validation loss has not improved, decay the 
                     # learning rate
                     else:

@@ -217,10 +217,10 @@ class CXRClassifier(object):
             # only save if improvement
             if best_loss is None or valloss < best_loss: 
                 best_loss = valloss
-                self._checkpoint(i_epoch, valloss, suffix='.best_loss')
+                self.checkpoint(suffix='.best_loss')
             if best_auroc is None or valauroc > best_auroc:
                 best_auroc = valauroc
-                self._checkpoint(i_epoch, valloss, suffix='.best_auroc')
+                self.checkpoint(suffix='.best_auroc')
                 
             # If the validation loss has not improved, decay the 
             # learning rate
@@ -343,14 +343,12 @@ class CXRClassifier(object):
         log_metrics("val", epoch, loss / len(val_dataloader), auroc.compute().item())
         return loss, auroc.compute().item()
 
-    def _checkpoint(self, epoch, valloss, suffix=None):
+    def checkpoint(self, suffix=None):
         '''
         Save a checkpoint to self.checkpoint_path, including the full model, 
         current epoch, learning rate, and random number generator state.
         '''
         state = {'model': self.model,
-                 'best_loss': valloss,
-                 'epoch': epoch,
                  'rng_state': torch.get_rng_state(),
                  'LR': self.lr ,
                  'optimizer': self.optimizer.state_dict()}
