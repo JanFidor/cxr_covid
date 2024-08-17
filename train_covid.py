@@ -24,6 +24,7 @@ from datasets import (
     DomainConfoundedDataset
 )
 from logger import initialize_wandb
+import wandb
 
 
 def load_overlap(path="data/bimcv-/listjoin_ok.tsv"):
@@ -140,7 +141,7 @@ def get_train_augmentations(name):
         ])
     }.get(name, None)
 
-def train_dataset_1(seed, alexnet=False, freeze_features=False, train_augments=None):
+def train_dataset_1(experiment_name, seed, alexnet=False, freeze_features=False, train_augments=None):
     trainds = DomainConfoundedDataset(
             ChestXray14Dataset(fold='train', augments=train_augments, labels='chestx-ray14', random_state=seed),
             GitHubCOVIDDataset(fold='train', augments=train_augments, labels='chestx-ray14', random_state=seed)
@@ -155,38 +156,8 @@ def train_dataset_1(seed, alexnet=False, freeze_features=False, train_augments=N
     if alexnet: netstring = 'alexnet'
     elif freeze_features: netstring = 'densenet121frozen'
     else: netstring = 'densenet121'
-    logpath = 'logs/dataset1.{:s}.{:d}.log'.format(netstring, seed)
-    checkpointpath = 'checkpoints/dataset1.{:s}.{:d}.pkl'.format(netstring, seed)
-
-    classifier = CXRClassifier()
-    classifier.train(trainds,
-                valds,
-                max_epochs=2,
-                lr=0.01, 
-                weight_decay=1e-4,
-                logpath=logpath,
-                checkpoint_path=checkpointpath,
-                verbose=True,
-                scratch_train=alexnet,
-                freeze_features=freeze_features,
-                batch_size=8)
-
-def train_dataset_2(seed, alexnet=False, freeze_features=False, train_augments=None):
-    trainds = DomainConfoundedDataset(
-            PadChestDataset(fold='train', augments=train_augments, labels='chestx-ray14', random_state=seed),
-            BIMCVCOVIDDataset(fold='train', augments=train_augments, labels='chestx-ray14', random_state=seed)
-            )
-    valds = DomainConfoundedDataset(
-            PadChestDataset(fold='val', labels='chestx-ray14', random_state=seed),
-            BIMCVCOVIDDataset(fold='val', labels='chestx-ray14', random_state=seed)
-            )
-
-    # generate log and checkpoint paths
-    if alexnet: netstring = 'alexnet'
-    elif freeze_features: netstring = 'densenet121frozen'
-    else: netstring = 'densenet121'
-    logpath = 'logs/dataset2.{:s}.{:d}.log'.format(netstring, seed)
-    checkpointpath = 'checkpoints/dataset2.{:s}.{:d}.pkl'.format(netstring, seed)
+    logpath = f'logs/{experiment_name}.dataset1.{netstring}.{seed}.log'
+    checkpointpath = f'checkpoints/{experiment_name}.dataset1.{netstring}.{seed}.pkl'
 
     classifier = CXRClassifier()
     classifier.train(
@@ -202,8 +173,42 @@ def train_dataset_2(seed, alexnet=False, freeze_features=False, train_augments=N
         freeze_features=freeze_features,
         batch_size=8
     )
+    wandb.save(classifier.checkpoint())
 
-def train_dataset_3(seed, alexnet=False, freeze_features=False, train_augments=None):
+def train_dataset_2(experiment_name, seed, alexnet=False, freeze_features=False, train_augments=None):
+    trainds = DomainConfoundedDataset(
+            PadChestDataset(fold='train', augments=train_augments, labels='chestx-ray14', random_state=seed),
+            BIMCVCOVIDDataset(fold='train', augments=train_augments, labels='chestx-ray14', random_state=seed)
+            )
+    valds = DomainConfoundedDataset(
+            PadChestDataset(fold='val', labels='chestx-ray14', random_state=seed),
+            BIMCVCOVIDDataset(fold='val', labels='chestx-ray14', random_state=seed)
+            )
+
+    # generate log and checkpoint paths
+    if alexnet: netstring = 'alexnet'
+    elif freeze_features: netstring = 'densenet121frozen'
+    else: netstring = 'densenet121'
+    logpath = f'logs/{experiment_name}.dataset2.{netstring}.{seed}.log'
+    checkpointpath = f'checkpoints/{experiment_name}.dataset2.{netstring}.{seed}.pkl'
+
+    classifier = CXRClassifier()
+    classifier.train(
+        trainds,
+        valds,
+        max_epochs=30,
+        lr=0.01, 
+        weight_decay=1e-4,
+        logpath=logpath,
+        checkpoint_path=checkpointpath,
+        verbose=True,
+        scratch_train=alexnet,
+        freeze_features=freeze_features,
+        batch_size=8
+    )
+    wandb.save(classifier.checkpoint())
+
+def train_dataset_3(experiment_name, seed, alexnet=False, freeze_features=False, train_augments=None):
     # Unlike the other datasets, there is overlap in patients between the
     # BIMCV-COVID-19+ and BIMCV-COVID-19- datasets, so we have to perform the 
     # train/val/test split *after* creating the datasets.
@@ -235,22 +240,26 @@ def train_dataset_3(seed, alexnet=False, freeze_features=False, train_augments=N
     if alexnet: netstring = 'alexnet'
     elif freeze_features: netstring = 'densenet121frozen'
     else: netstring = 'densenet121'
-    logpath = 'logs/dataset3.{:s}.{:d}.log'.format(netstring, seed)
-    checkpointpath = 'checkpoints/dataset3.{:s}.{:d}.pkl'.format(netstring, seed)
+    logpath = f'logs/{experiment_name}.dataset3.{netstring}.{seed}.log'
+    checkpointpath = f'checkpoints/{experiment_name}.dataset3.{netstring}.{seed}.pkl'
 
     classifier = CXRClassifier()
-    classifier.train(trainds,
-                valds,
-                max_epochs=5,
-                lr=0.01, 
-                batch_size=16,
-                weight_decay=1e-4,
-                logpath=logpath,
-                checkpoint_path=checkpointpath,
-                verbose=True,
-                scratch_train=alexnet,
-                freeze_features=freeze_features,
-                )
+    classifier.train(
+        trainds,
+        valds,
+        max_epochs=30,
+        lr=0.01, 
+        batch_size=16,
+        weight_decay=1e-4,
+        logpath=logpath,
+        checkpoint_path=checkpointpath,
+        verbose=True,
+        scratch_train=alexnet,
+        freeze_features=freeze_features,
+    )
+    wandb.save(checkpointpath)
+    wandb.save(f"{checkpointpath}.best_auroc")
+    wandb.save(f"{checkpointpath}.best_loss")
 
 def main():
     parser = argparse.ArgumentParser(description='Training script for COVID-19 '
@@ -264,7 +273,7 @@ def main():
                         help='The network type. Choose "densenet121", "logistic", or "alexnet".')
     parser.add_argument('--device-index', dest='deviceidx', type=int, default=None, required=False,
                         help='The index of the GPU device to use. If None, use the default GPU.')
-    parser.add_argument('--augments', dest='augments', type=str, default="strong", required=False,
+    parser.add_argument('--augments', dest='augments', type=str, default="none", required=False,
                         help='Augment strength')
     parser.add_argument('--experiment', dest='experiment', type=str, default='experiment_name', required=False,
                         help='Experiment name')
@@ -279,24 +288,33 @@ def main():
     if args.deviceidx is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = "{:d}".format(args.deviceidx)
 
-    initialize_wandb(args.experiment, None, "cxr_covid", {})
+    initialize_wandb(args.experiment, args.group, "cxr_covid", {})
     augments = get_train_augmentations(args.augments)
+
     if args.dataset == 1:
-        train_dataset_1(args.seed, 
-                alexnet=(args.network.lower() == 'alexnet'), 
-                freeze_features=(args.network.lower() == 'logistic'),
-                train_augments=augments)
+        train_dataset_1(
+            args.experiment,
+            args.seed, 
+            alexnet=(args.network.lower() == 'alexnet'), 
+            freeze_features=(args.network.lower() == 'logistic'),
+            train_augments=augments
+        )
     if args.dataset == 2:
-        train_dataset_2(args.seed, 
-                alexnet=(args.network.lower() == 'alexnet'), 
-                freeze_features=(args.network.lower() == 'logistic'),
-                train_augments=augments
-                )
+        train_dataset_2(
+            args.experiment,
+            args.seed, 
+            alexnet=(args.network.lower() == 'alexnet'), 
+            freeze_features=(args.network.lower() == 'logistic'),
+            train_augments=augments
+        )
     if args.dataset == 3:
-        train_dataset_3(args.seed, 
-                alexnet=(args.network.lower() == 'alexnet'), 
-                freeze_features=(args.network.lower() == 'logistic'),
-                train_augments=augments)
+        train_dataset_3(
+            args.experiment,
+            args.seed, 
+            alexnet=(args.network.lower() == 'alexnet'), 
+            freeze_features=(args.network.lower() == 'logistic'),
+            train_augments=augments
+        )
 
 if __name__ == "__main__":
     main()
