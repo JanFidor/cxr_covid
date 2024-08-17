@@ -173,7 +173,9 @@ def train_dataset_1(experiment_name, seed, alexnet=False, freeze_features=False,
         freeze_features=freeze_features,
         batch_size=8
     )
-    wandb.save(classifier.checkpoint())
+    wandb.save(checkpointpath)
+    wandb.save(f"{checkpointpath}.best_auroc")
+    wandb.save(f"{checkpointpath}.best_loss")
 
 def train_dataset_2(experiment_name, seed, alexnet=False, freeze_features=False, train_augments=None):
     trainds = DomainConfoundedDataset(
@@ -206,7 +208,9 @@ def train_dataset_2(experiment_name, seed, alexnet=False, freeze_features=False,
         freeze_features=freeze_features,
         batch_size=8
     )
-    wandb.save(classifier.checkpoint())
+    wandb.save(checkpointpath)
+    wandb.save(f"{checkpointpath}.best_auroc")
+    wandb.save(f"{checkpointpath}.best_loss")
 
 def train_dataset_3(experiment_name, seed, alexnet=False, freeze_features=False, train_augments=None):
     # Unlike the other datasets, there is overlap in patients between the
