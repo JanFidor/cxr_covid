@@ -3,6 +3,8 @@ data/tensors/
 data/labels/
 data/zips
 
+/examples
+
 checkpoints/
 images/
 wandb/
