@@ -364,7 +364,7 @@ def main():
     if args.deviceidx is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = "{:d}".format(args.deviceidx)
 
-    initialize_wandb(args.experiment, args.group, "cxr_covid", {})
+    initialize_wandb(args.experiment, args.group, "cxr_covid", vars(args))
 
     # Set seeds
     torch.manual_seed(args.seed)
