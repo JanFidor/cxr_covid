@@ -224,7 +224,6 @@ class CXRClassifier(object):
         best_loss = None 
         best_auroc = None
 
-        self._val_epoch(val_dataloader, 0)
         for i in range(max_epochs):
             i_epoch = i + 1
             print("-------- Epoch {:03d} --------".format(i_epoch))
@@ -303,8 +302,8 @@ class CXRClassifier(object):
 
             # Transfer inputs (images) and labels (arrays of ints) to 
             # GPU
-            inputs = torch.autograd.Variable(inputs.cuda())
-            labels = torch.autograd.Variable(labels.cuda()).float()
+            inputs = inputs.cuda()
+            labels = labels.cuda().float()
             outputs = self.model(inputs)
 
             # Calculate the loss
@@ -345,8 +344,8 @@ class CXRClassifier(object):
 
             # Transfer inputs (images) and labels (arrays of ints) to 
             # GPU
-            inputs = torch.autograd.Variable(inputs.cuda())
-            labels = torch.autograd.Variable(labels.cuda()).float()
+            inputs = inputs.cuda()
+            labels = labels.cuda().float()
             outputs = self.model(inputs)
 
             covid_labels = labels.to(torch.int)[:,-1]
@@ -425,8 +424,8 @@ class CXRClassifier(object):
         for ibatch, batch in enumerate(tqdm(dataloader, leave=False)):
             inputs, labels, _, ds = batch
             # Move to GPU
-            inputs = torch.autograd.Variable(inputs.cpu())
-            labels = torch.autograd.Variable(labels.cpu())
+            inputs = inputs.cpu()
+            labels = labels.cpu()
 
             true_labels = labels.cpu().data.numpy()
             # Size of current batch. Could be less than batch_size in final 
