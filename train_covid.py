@@ -368,8 +368,9 @@ def main():
 
     # Set seeds
     torch.manual_seed(args.seed)
+    torch.cuda.manual_seed(args.seed)
     random.seed(args.seed)
-    np.random.seed(0)
+    np.random.seed(args.seed)
 
 
     if args.dataset == 1:
