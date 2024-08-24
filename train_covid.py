@@ -9,10 +9,15 @@ import os
 import sys
 
 import argparse
-import numpy
+
 import pandas
 import sklearn.metrics
 from torchvision.transforms import v2
+
+# seeding
+import torch
+import random
+import numpy as np
 
 from models import CXRClassifier
 from datasets import (
@@ -125,39 +130,75 @@ def _find_index(ds, desired_label):
 def get_train_augmentations(name):
     return {
         "weak": v2.Compose([
-            v2.RandomResizedCrop(224, [0.9, 1]),
+            v2.CenterCrop(int(224 * 0.95)),
+            v2.Resize(224),
             v2.RandomRotation(5),
             v2.RandomHorizontalFlip(0.5)
         ]),
         "medium": v2.Compose([
-            v2.RandomResizedCrop(224, [0.85, 1]),
+            v2.CenterCrop(int(224 * 0.85)),
+            v2.Resize(224),
             v2.RandomRotation(10),
             v2.RandomHorizontalFlip(0.5)
         ]),
         "strong": v2.Compose([
-            v2.RandomResizedCrop(224, [0.75, 1]),
+            v2.CenterCrop(int(224 * 0.75)),
+            v2.Resize(224),
             v2.RandomRotation(10),
             v2.RandomHorizontalFlip(0.5)
         ])
-    }.get(name, None)
+    }.get(name, v2.Identity())
 
-def train_dataset_1(experiment_name, seed, alexnet=False, freeze_features=False, train_augments=None):
+def get_preprocessing(name):
+    return {
+        "weak": v2.Compose([
+            v2.CenterCrop(int(224 * 0.95)),
+            v2.Resize(224),
+        ]),
+        "medium": v2.Compose([
+            v2.CenterCrop(int(224 * 0.85)),
+            v2.Resize(224),
+        ]),
+        "strong": v2.Compose([
+            v2.CenterCrop(int(224 * 0.75)),
+            v2.Resize(224),
+        ])
+    }.get(name, v2.Identity())
+
+def train_dataset_1(
+    experiment_name,
+    seed,
+    model_name,
+    freeze_features=False,
+    augments_name=None,
+    split_name=None
+):
+    train_augments = get_train_augmentations(augments_name)
+    preprocessing = get_preprocessing(augments_name)
     trainds = DomainConfoundedDataset(
             ChestXray14Dataset(fold='train', augments=train_augments, labels='chestx-ray14', random_state=seed),
             GitHubCOVIDDataset(fold='train', augments=train_augments, labels='chestx-ray14', random_state=seed)
             )
 
     valds = DomainConfoundedDataset(
-            ChestXray14Dataset(fold='val', labels='chestx-ray14', random_state=seed),
-            GitHubCOVIDDataset(fold='val', labels='chestx-ray14', random_state=seed)
+            ChestXray14Dataset(fold='val', labels='chestx-ray14', augments=preprocessing, random_state=seed),
+            GitHubCOVIDDataset(fold='val', labels='chestx-ray14', augments=preprocessing, random_state=seed)
             )
+    
+    split_dir = f"splits/{split_name}/dataset1"
+    if split_name:
+        trainds.ds1.df = pandas.read_csv(f"{split_dir}/chestxray-train.csv")
+        trainds.ds1.meta_df = pandas.read_csv(f"{split_dir}/chestxray-trainmeta.csv")
+
+        valds.ds1.df = pandas.read_csv(f"{split_dir}/chestxray-val.csv")
+        valds.ds1.meta_df = pandas.read_csv(f"{split_dir}/chestxray-valmeta.csv")
+
+        trainds.ds2.df = pandas.read_csv(f"{split_dir}/padchest-train.csv")
+        valds.ds2.df = pandas.read_csv(f"{split_dir}/padchest-val.csv")
 
     # generate log and checkpoint paths
-    if alexnet: netstring = 'alexnet'
-    elif freeze_features: netstring = 'densenet121frozen'
-    else: netstring = 'densenet121'
-    logpath = f'logs/{experiment_name}.dataset1.{netstring}.{seed}.log'
-    checkpointpath = f'checkpoints/{experiment_name}.dataset1.{netstring}.{seed}.pkl'
+    logpath = f'logs/{experiment_name}.dataset1.{model_name}.{seed}.log'
+    checkpointpath = f'checkpoints/{experiment_name}.dataset1.{model_name}.{seed}.pkl'
 
     classifier = CXRClassifier()
     classifier.train(
@@ -169,7 +210,7 @@ def train_dataset_1(experiment_name, seed, alexnet=False, freeze_features=False,
         logpath=logpath,
         checkpoint_path=checkpointpath,
         verbose=True,
-        scratch_train=alexnet,
+        model_name=model_name,
         freeze_features=freeze_features,
         batch_size=8
     )
@@ -177,22 +218,36 @@ def train_dataset_1(experiment_name, seed, alexnet=False, freeze_features=False,
     wandb.save(f"{checkpointpath}.best_auroc")
     wandb.save(f"{checkpointpath}.best_loss")
 
-def train_dataset_2(experiment_name, seed, alexnet=False, freeze_features=False, train_augments=None):
+def train_dataset_2(
+    experiment_name,
+    seed,
+    model_name,
+    freeze_features=False,
+    augments_name=None,
+    split_name=None
+):
+    train_augments = get_train_augmentations(augments_name)
+    preprocessing = get_preprocessing(augments_name)
     trainds = DomainConfoundedDataset(
             PadChestDataset(fold='train', augments=train_augments, labels='chestx-ray14', random_state=seed),
             BIMCVCOVIDDataset(fold='train', augments=train_augments, labels='chestx-ray14', random_state=seed)
             )
     valds = DomainConfoundedDataset(
-            PadChestDataset(fold='val', labels='chestx-ray14', random_state=seed),
-            BIMCVCOVIDDataset(fold='val', labels='chestx-ray14', random_state=seed)
+            PadChestDataset(fold='val', labels='chestx-ray14', augments=preprocessing, random_state=seed),
+            BIMCVCOVIDDataset(fold='val', labels='chestx-ray14', augments=preprocessing, random_state=seed)
             )
+    
+    split_dir = f"splits/{split_name}/dataset2"
+    if split_name:
+        trainds.ds1.df = pandas.read_csv(f"{split_dir}/padchest-train.csv")
+        valds.ds1.df = pandas.read_csv(f"{split_dir}/padchest-val.csv")
+
+        trainds.ds2.df = pandas.read_csv(f"{split_dir}/bimcv-train.csv")
+        valds.ds2.df = pandas.read_csv(f"{split_dir}/bimcv-val.csv")
 
     # generate log and checkpoint paths
-    if alexnet: netstring = 'alexnet'
-    elif freeze_features: netstring = 'densenet121frozen'
-    else: netstring = 'densenet121'
-    logpath = f'logs/{experiment_name}.dataset2.{netstring}.{seed}.log'
-    checkpointpath = f'checkpoints/{experiment_name}.dataset2.{netstring}.{seed}.pkl'
+    logpath = f'logs/{experiment_name}.dataset2.{model_name}.{seed}.log'
+    checkpointpath = f'checkpoints/{experiment_name}.dataset2.{model_name}.{seed}.pkl'
 
     classifier = CXRClassifier()
     classifier.train(
@@ -204,7 +259,7 @@ def train_dataset_2(experiment_name, seed, alexnet=False, freeze_features=False,
         logpath=logpath,
         checkpoint_path=checkpointpath,
         verbose=True,
-        scratch_train=alexnet,
+        model_name=model_name,
         freeze_features=freeze_features,
         batch_size=8
     )
@@ -212,7 +267,16 @@ def train_dataset_2(experiment_name, seed, alexnet=False, freeze_features=False,
     wandb.save(f"{checkpointpath}.best_auroc")
     wandb.save(f"{checkpointpath}.best_loss")
 
-def train_dataset_3(experiment_name, seed, alexnet=False, freeze_features=False, train_augments=None):
+def train_dataset_3(
+    experiment_name,
+    seed,
+    model_name,
+    freeze_features=False,
+    augments_name=None,
+    split_name=None
+):
+    train_augments = get_train_augmentations(augments_name)
+    preprocessing = get_preprocessing(augments_name)
     # Unlike the other datasets, there is overlap in patients between the
     # BIMCV-COVID-19+ and BIMCV-COVID-19- datasets, so we have to perform the 
     # train/val/test split *after* creating the datasets.
@@ -223,29 +287,35 @@ def train_dataset_3(experiment_name, seed, alexnet=False, freeze_features=False,
             BIMCVCOVIDDataset(fold='all', augments=train_augments, labels='chestx-ray14', random_state=seed)
             )
     valds = DomainConfoundedDataset(
-            BIMCVNegativeDataset(fold='all', labels='chestx-ray14', random_state=seed),
-            BIMCVCOVIDDataset(fold='all', labels='chestx-ray14', random_state=seed)
+            BIMCVNegativeDataset(fold='all', labels='chestx-ray14', augments=preprocessing, random_state=seed),
+            BIMCVCOVIDDataset(fold='all', labels='chestx-ray14', augments=preprocessing, random_state=seed)
             )
-    # split on a per-patient basis
-    trainvaldf1, testdf1, trainvaldf2, testdf2 = ds3_grouped_split(trainds.ds1.df, trainds.ds2.df, random_state=seed)
-    traindf1, valdf1, traindf2, valdf2 = ds3_grouped_split(trainvaldf1, trainvaldf2, random_state=seed)
+    
+    split_dir = f"splits/{split_name}/dataset3"
+    if split_name:
+        trainds.ds1.df = pandas.read_csv(f"{split_dir}/traindf1.csv")
+        valds.ds1.df = pandas.read_csv(f"{split_dir}/valdf1.csv")
 
-    # Update the dataframes to respect the per-patient splits
-    trainds.ds1.df = traindf1
-    trainds.ds2.df = traindf2
-    valds.ds1.df = valdf1
-    valds.ds2.df = valdf2
+        trainds.ds2.df = pandas.read_csv(f"{split_dir}/traindf2.csv")
+        valds.ds2.df = pandas.read_csv(f"{split_dir}/valdf2.csv")
+    else:
+    # split on a per-patient basis
+        trainvaldf1, testdf1, trainvaldf2, testdf2 = ds3_grouped_split(trainds.ds1.df, trainds.ds2.df, random_state=seed)
+        traindf1, valdf1, traindf2, valdf2 = ds3_grouped_split(trainvaldf1, trainvaldf2, random_state=seed)
+
+        # Update the dataframes to respect the per-patient splits
+        trainds.ds1.df = traindf1
+        trainds.ds2.df = traindf2
+        valds.ds1.df = valdf1
+        valds.ds2.df = valdf2
     trainds.len1 = len(trainds.ds1)
     trainds.len2 = len(trainds.ds2)
     valds.len1 = len(valds.ds1)
     valds.len2 = len(valds.ds2)
 
     # generate log and checkpoint paths
-    if alexnet: netstring = 'alexnet'
-    elif freeze_features: netstring = 'densenet121frozen'
-    else: netstring = 'densenet121'
-    logpath = f'logs/{experiment_name}.dataset3.{netstring}.{seed}.log'
-    checkpointpath = f'checkpoints/{experiment_name}.dataset3.{netstring}.{seed}.pkl'
+    logpath = f'logs/{experiment_name}.dataset3.{model_name}.{seed}.log'
+    checkpointpath = f'checkpoints/{experiment_name}.dataset3.{model_name}.{seed}.pkl'
 
     classifier = CXRClassifier()
     classifier.train(
@@ -258,7 +328,7 @@ def train_dataset_3(experiment_name, seed, alexnet=False, freeze_features=False,
         logpath=logpath,
         checkpoint_path=checkpointpath,
         verbose=True,
-        scratch_train=alexnet,
+        model_name=model_name,
         freeze_features=freeze_features,
     )
     wandb.save(checkpointpath)
@@ -271,10 +341,12 @@ def main():
             'running this script. See the README file for more information.')
     parser.add_argument('--dataset', dest='dataset', type=int, default=3, required=False,
                         help='The dataset number on which to train. Choose "1" or "2" or "3".')
-    parser.add_argument('--seed', dest='seed', type=int, default=30490, required=False,
+    parser.add_argument('--seed', dest='seed', type=int, default=42, required=False,
                         help='The random seed used to generate train/val/test splits')
-    parser.add_argument('--network', dest='network', type=str, default='densenet121', required=False,
-                        help='The network type. Choose "densenet121", "logistic", or "alexnet".')
+    parser.add_argument('--network', dest='network', type=str, default='densenet121-pretrain', required=False,
+                        help='The network type. Choose "densenet121-random", "densenet121-pretrain", "logistic", or "alexnet".')
+    parser.add_argument('--split', dest='split', type=str, default=42, required=False,
+                        help='Split name')
     parser.add_argument('--device-index', dest='deviceidx', type=int, default=None, required=False,
                         help='The index of the GPU device to use. If None, use the default GPU.')
     parser.add_argument('--augments', dest='augments', type=str, default="none", required=False,
@@ -293,31 +365,39 @@ def main():
         os.environ["CUDA_VISIBLE_DEVICES"] = "{:d}".format(args.deviceidx)
 
     initialize_wandb(args.experiment, args.group, "cxr_covid", {})
-    augments = get_train_augmentations(args.augments)
+
+    # Set seeds
+    torch.manual_seed(args.seed)
+    random.seed(args.seed)
+    np.random.seed(0)
+
 
     if args.dataset == 1:
         train_dataset_1(
             args.experiment,
             args.seed, 
-            alexnet=(args.network.lower() == 'alexnet'), 
+            model_name=args.network, 
             freeze_features=(args.network.lower() == 'logistic'),
-            train_augments=augments
+            augments_name=args.augments,
+            split_name=args.split
         )
     if args.dataset == 2:
         train_dataset_2(
             args.experiment,
             args.seed, 
-            alexnet=(args.network.lower() == 'alexnet'), 
+            model_name=args.network, 
             freeze_features=(args.network.lower() == 'logistic'),
-            train_augments=augments
+            augments_name=args.augments,
+            split_name=args.split
         )
     if args.dataset == 3:
         train_dataset_3(
             args.experiment,
             args.seed, 
-            alexnet=(args.network.lower() == 'alexnet'), 
+            model_name=args.network, 
             freeze_features=(args.network.lower() == 'logistic'),
-            train_augments=augments
+            augments_name=args.augments,
+            split_name=args.split
         )
 
 if __name__ == "__main__":

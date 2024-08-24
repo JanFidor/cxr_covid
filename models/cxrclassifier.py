@@ -23,6 +23,7 @@ from torchmetrics import AUROC
 from pytorch_grad_cam import GradCAM, EigenCAM, GradCAMPlusPlus, EigenGradCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
+import random
 
 mean = [0.485, 0.456, 0.406]
 std = [0.229, 0.224, 0.225]
@@ -47,7 +48,13 @@ def _find_index(ds, desired_label):
         return desired_index
     else:
         raise ValueError("Label {:s} not found.".format(desired_label))
-        
+
+def seed_worker(worker_id):
+    worker_seed = torch.initial_seed() % 2**32
+    numpy.random.seed(worker_seed)
+    random.seed(worker_seed)
+
+
 class AlexNet(Module):
 
     def __init__(self, num_classes=1000):
@@ -88,15 +95,18 @@ class AlexNet(Module):
 
 class CXRClassifier(object):
     'A classifier for various pathologies found in chest radiographs'
-    def __init__(self, n_logged=5):
+    def __init__(self, n_logged=5, seed=42):
         '''
         Create a classifier for chest radiograph pathology.
         '''
         self.n_logged = n_logged
         self.lossfunc = torch.nn.BCEWithLogitsLoss()
 
-    def build_model(self, n_labels):
-        self.model = torchvision.models.densenet121(pretrained=True)
+        self.g = torch.Generator()
+        self.g.manual_seed(seed)
+
+    def build_model(self, n_labels, pretrained):
+        self.model = torchvision.models.densenet121(pretrained=pretrained)
         num_ftrs = self.model.classifier.in_features
         # Add a classification head; consists of standard dense layer with
         # sigmoid activation and one output node per pathology in train_dataset
@@ -138,7 +148,7 @@ class CXRClassifier(object):
               logpath=None,
               checkpoint_path='checkpoint.pkl',
               verbose=True,
-              scratch_train=False,
+              model_name=False,
               freeze_features=False):
         '''
         Train the classifier to predict the labels in the specified dataset.
@@ -173,22 +183,29 @@ class CXRClassifier(object):
         # Create torch DataLoaders from the training and validation datasets.
         # Necessary for batching and shuffling data.
         train_dataloader = torch.utils.data.DataLoader(
-                train_dataset,
-                batch_size=batch_size,
-                shuffle=True,
-                num_workers=1,)
+            train_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=1,
+            worker_init_fn=seed_worker,
+            generator=self.g,
+        )
         val_dataloader = torch.utils.data.DataLoader(
                 val_dataset,
                 batch_size=batch_size,
                 shuffle=False,
-                num_workers=1,)
+                num_workers=1,
+            worker_init_fn=seed_worker,
+            generator=self.g,
+        )
 
         # Build the model
         self.n_labels = len(train_dataset.labels)
-        if scratch_train:
+        if model_name == 'alexnet':
             self.build_model_scratch(len(train_dataset.labels))
         else:
-            self.build_model(len(train_dataset.labels))
+            pretrained = model_name == 'logistic' or model_name.split("-")[1] == 'pretrain'
+            self.build_model(len(train_dataset.labels), pretrained)
 
         # Freeze weights if desired
         if freeze_features:
@@ -206,7 +223,10 @@ class CXRClassifier(object):
         # (ii) calculate validation loss.
         best_loss = None 
         best_auroc = None
-        for i_epoch in range(max_epochs):
+
+        self._val_epoch(val_dataloader, 0)
+        for i in range(max_epochs):
+            i_epoch = i + 1
             print("-------- Epoch {:03d} --------".format(i_epoch))
             
             trainloss = self._train_epoch(train_dataloader, i_epoch)
@@ -389,10 +409,13 @@ class CXRClassifier(object):
 
         # Build a dataloader to batch predictions
         dataloader = torch.utils.data.DataLoader(
-                dataset,
-                batch_size=batch_size,
-                shuffle=False,
-                num_workers=1)
+            dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=1,
+            worker_init_fn=seed_worker,
+            generator=self.g,
+        )
         pred_df = pandas.DataFrame(columns=["path"])
         true_df = pandas.DataFrame(columns=["path"])
 
