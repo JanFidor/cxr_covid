@@ -83,12 +83,13 @@ def create_miou_matrix(threshold, gradcam_names, model_paths, image_paths):
             matrix[i][ii] = calculate_saliency_jaccard(threshold, cam1, cam2, image_paths)
     return matrix
 
-def creat_heatmap(save_path, threshold, gradcam_names, model_paths, image_paths):
+def creat_heatmap(save_path, threshold, gradcam_names, model_paths, image_paths, legend=False):
     matrix = create_miou_matrix(threshold, gradcam_names, model_paths, image_paths)
     
-    plot = sn.heatmap(matrix, annot=True)
+    plot = sn.heatmap(matrix, annot=True, cbar=legend)
     fig = plot.get_figure()
     fig.savefig(save_path) 
+    sn.reset_defaults()
 
 def miou_tresholds(split_path, heatmap_name, threshold, gradcam_names, model_paths):
     # threshold = 0.7
@@ -105,33 +106,36 @@ def miou_tresholds(split_path, heatmap_name, threshold, gradcam_names, model_pat
     valdfs = {}
     for path in rootdir.rglob("*"):
         image_names = pd.read_csv(path).path
+        dataset_dir = "bimcv+" if path.stem.split('-')[0] == 'positive' else 'bimcv-'
         image_paths = [
-            f"data/tensors/bimcv+/{name.split('/')[-1].split('.')[0]}.pt" for name in image_names
+            f"data/tensors/{dataset_dir}/{Path(name).stem}.pt" for name in image_names
         ]
         if path.stem.endswith("val"):
-            valdfs[path.stem] = image_paths
+            valdfs[path.stem] = image_paths[:2]
         else:
-            traindfs[path.stem] = image_paths
+            traindfs[path.stem] = image_paths[:2]
 
-    save_dir = f"examples/{split_path}/{heatmap_name}"
-    for name, paths in traindfs.items():
-        save_path = f"{save_dir}/{name}.png"
-        creat_heatmap(save_path, threshold, gradcam_names, model_paths, paths)
-    for name, paths in valdfs.items():
-        save_path = f"{save_dir}/{name}.png"
-        creat_heatmap(save_path, threshold, gradcam_names, model_paths, paths)
-    
+    save_dir = f"examples/heatmaps/{split_path}/{heatmap_name}"
+    Path(save_dir).mkdir(parents=True, exist_ok=True)
+
     paths = []
     for curr in traindfs.values():
         paths += curr
     save_path = f"{save_dir}/combined-train.png"
-    creat_heatmap(save_path, threshold, gradcam_names, model_paths, paths)
+    creat_heatmap(save_path, threshold, gradcam_names, model_paths, paths, True)
 
     paths = []
     for curr in valdfs.values():
         paths += curr
     save_path = f"{save_dir}/combined-val.png"
     creat_heatmap(save_path, threshold, gradcam_names, model_paths, paths)
+
+    for name, paths in traindfs.items():
+        save_path = f"{save_dir}/{name}.png"
+        creat_heatmap(save_path, threshold, gradcam_names, model_paths, paths)
+    for name, paths in valdfs.items():
+        save_path = f"{save_dir}/{name}.png"
+        creat_heatmap(save_path, threshold, gradcam_names, model_paths, paths)
 
 if __name__ == "__main__":
     # parser = argparse.ArgumentParser(
