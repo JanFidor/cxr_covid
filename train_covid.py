@@ -149,7 +149,7 @@ def get_train_augmentations(name):
         ]),
         "weak-random": v2.Compose([
             v2.RandomResizedCrop(224, 0.95),
-            v2.RandomRotation(10),
+            v2.RandomRotation(5),
             v2.RandomHorizontalFlip(0.5)
         ]),
         "medium-random": v2.Compose([
