@@ -400,7 +400,7 @@ def main():
             model_name=args.network, 
             freeze_features=(args.network.lower() == 'logistic'),
             augments_name=args.augments,
-            augments_name=args.augments,
+            preprocessing=args.preprocessing,
             split_name=args.split
         )
     if args.dataset == 2:
