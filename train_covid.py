@@ -171,10 +171,11 @@ def train_dataset_1(
     model_name,
     freeze_features=False,
     augments_name=None,
+    preprocessing=None,
     split_name=None
 ):
     train_augments = get_train_augmentations(augments_name)
-    preprocessing = get_preprocessing(augments_name)
+    preprocessing = get_preprocessing(preprocessing)
     trainds = DomainConfoundedDataset(
             ChestXray14Dataset(fold='train', augments=train_augments, labels='chestx-ray14', random_state=seed),
             GitHubCOVIDDataset(fold='train', augments=train_augments, labels='chestx-ray14', random_state=seed)
@@ -224,10 +225,11 @@ def train_dataset_2(
     model_name,
     freeze_features=False,
     augments_name=None,
+    preprocessing=None,
     split_name=None
 ):
     train_augments = get_train_augmentations(augments_name)
-    preprocessing = get_preprocessing(augments_name)
+    preprocessing = get_preprocessing(preprocessing)
     trainds = DomainConfoundedDataset(
             PadChestDataset(fold='train', augments=train_augments, labels='chestx-ray14', random_state=seed),
             BIMCVCOVIDDataset(fold='train', augments=train_augments, labels='chestx-ray14', random_state=seed)
@@ -273,10 +275,11 @@ def train_dataset_3(
     model_name,
     freeze_features=False,
     augments_name=None,
+    preprocessing=None,
     split_name=None
 ):
     train_augments = get_train_augmentations(augments_name)
-    preprocessing = get_preprocessing(augments_name)
+    preprocessing = get_preprocessing(preprocessing)
     # Unlike the other datasets, there is overlap in patients between the
     # BIMCV-COVID-19+ and BIMCV-COVID-19- datasets, so we have to perform the 
     # train/val/test split *after* creating the datasets.
@@ -321,7 +324,7 @@ def train_dataset_3(
     classifier.train(
         trainds,
         valds,
-        max_epochs=30,
+        max_epochs=2,
         lr=0.01, 
         batch_size=16,
         weight_decay=1e-4,
@@ -345,11 +348,13 @@ def main():
                         help='The random seed used to generate train/val/test splits')
     parser.add_argument('--network', dest='network', type=str, default='densenet121-pretrain', required=False,
                         help='The network type. Choose "densenet121-random", "densenet121-pretrain", "logistic", or "alexnet".')
-    parser.add_argument('--split', dest='split', type=str, default=42, required=False,
+    parser.add_argument('--split', dest='split', type=str, default=None, required=False,
                         help='Split name')
     parser.add_argument('--device-index', dest='deviceidx', type=int, default=None, required=False,
                         help='The index of the GPU device to use. If None, use the default GPU.')
     parser.add_argument('--augments', dest='augments', type=str, default="none", required=False,
+                        help='Augment strength')
+    parser.add_argument('--preprocessing', dest='preprocessing', type=str, default="none", required=False,
                         help='Augment strength')
     parser.add_argument('--experiment', dest='experiment', type=str, default='experiment_name', required=False,
                         help='Experiment name')
@@ -380,6 +385,7 @@ def main():
             model_name=args.network, 
             freeze_features=(args.network.lower() == 'logistic'),
             augments_name=args.augments,
+            augments_name=args.augments,
             split_name=args.split
         )
     if args.dataset == 2:
@@ -389,6 +395,7 @@ def main():
             model_name=args.network, 
             freeze_features=(args.network.lower() == 'logistic'),
             augments_name=args.augments,
+            preprocessing=args.preprocessing,
             split_name=args.split
         )
     if args.dataset == 3:
@@ -398,6 +405,7 @@ def main():
             model_name=args.network, 
             freeze_features=(args.network.lower() == 'logistic'),
             augments_name=args.augments,
+            preprocessing=args.preprocessing,
             split_name=args.split
         )
 
