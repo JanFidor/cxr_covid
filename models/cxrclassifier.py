@@ -325,6 +325,7 @@ class CXRClassifier(object):
                 log_metrics("train", epoch, step_loss / current_batch_size, auroc.compute().item())
 
             self.log_images("train", inputs, covid_labels, logged_per_class, epoch)
+        log_metrics("train", epoch, loss / len(train_dataloader), auroc.compute().item())
         return loss
 
     def _val_epoch(self, val_dataloader, epoch):
