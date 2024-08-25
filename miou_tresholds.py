@@ -5,10 +5,11 @@
 # Run ``python train_covid.py -h'' for information on using this script.
 #
 import json
-import argparse
+import pandas as pd
 import torch
 import seaborn as sn
 from tqdm import tqdm
+from pathlib import Path
 
 from models.cxrclassifier import AlexNet
 from torchvision.models.densenet import DenseNet
@@ -80,36 +81,57 @@ def create_miou_matrix(threshold, gradcam_names, model_paths, image_paths):
             cam1 = all_gradcams[i]
             cam2 = all_gradcams[ii]
             matrix[i][ii] = calculate_saliency_jaccard(threshold, cam1, cam2, image_paths)
-    print(matrix)
     return matrix
 
-def main(args):
-    threshold = 0.7
-    gradcam_names = ["grad++_cam", "eigen_cam"]
-    model_paths = [
-        "checkpoints/dataset3.densenet121.30497.pkl.best_auroc",
-        "checkpoints/dataset3.densenet121.30496.pkl.best_auroc",
-        "checkpoints/dataset3.densenet121.30495.pkl.best_auroc",
-        "checkpoints/dataset3.densenet121.30494.pkl.best_auroc",
-        "checkpoints/dataset3.densenet121.30493.pkl.best_auroc"
-    ]
-
-    image_names = [
-        "sub-S03066_ses-E07113_run-1_bp-chest_vp-pa_dx.pt",
-        "sub-S03082_ses-E07936_run-1_bp-chest_vp-ap_dx.pt",
-        "sub-S03349_ses-E06615_run-1_bp-chest_vp-pa_dx.pt",
-        "sub-S04179_ses-E08410_run-1_bp-chest_vp-pa_cr.pt",
-        "sub-S04401_ses-E08746_run-1_bp-chest_vp-pa_cr.pt"
-    ]
-    image_paths = [
-        f"data/tensors/bimcv+/{name}" for name in image_names
-    ]
-    
+def creat_heatmap(save_path, threshold, gradcam_names, model_paths, image_paths):
     matrix = create_miou_matrix(threshold, gradcam_names, model_paths, image_paths)
     
-    plot = sn.heatmap(matrix)
+    plot = sn.heatmap(matrix, annot=True)
     fig = plot.get_figure()
-    fig.savefig("miou_matrix.png") 
+    fig.savefig(save_path) 
+
+def miou_tresholds(split_path, heatmap_name, threshold, gradcam_names, model_paths):
+    # threshold = 0.7
+    # gradcam_names = ["grad++_cam", "eigen_cam"]
+    # heatmap_name = ""
+    # model_paths = [
+    #     "checkpoints/experiment_name.dataset3.densenet121-pretrain.42.pkl.best_auroc",
+    # ]
+
+    # split_path = "42/dataset3"
+    rootdir = Path("splits", split_path)
+
+    traindfs = {}
+    valdfs = {}
+    for path in rootdir.rglob("*"):
+        image_names = pd.read_csv(path).path
+        image_paths = [
+            f"data/tensors/bimcv+/{name.split('/')[-1].split('.')[0]}.pt" for name in image_names
+        ]
+        if path.stem.endswith("val"):
+            valdfs[path.stem] = image_paths
+        else:
+            traindfs[path.stem] = image_paths
+
+    save_dir = f"examples/{split_path}/{heatmap_name}"
+    for name, paths in traindfs.items():
+        save_path = f"{save_dir}/{name}.png"
+        creat_heatmap(save_path, threshold, gradcam_names, model_paths, paths)
+    for name, paths in valdfs.items():
+        save_path = f"{save_dir}/{name}.png"
+        creat_heatmap(save_path, threshold, gradcam_names, model_paths, paths)
+    
+    paths = []
+    for curr in traindfs.values():
+        paths += curr
+    save_path = f"{save_dir}/combined-train.png"
+    creat_heatmap(save_path, threshold, gradcam_names, model_paths, paths)
+
+    paths = []
+    for curr in valdfs.values():
+        paths += curr
+    save_path = f"{save_dir}/combined-val.png"
+    creat_heatmap(save_path, threshold, gradcam_names, model_paths, paths)
 
 if __name__ == "__main__":
     # parser = argparse.ArgumentParser(
@@ -120,4 +142,13 @@ if __name__ == "__main__":
     # parser.add_argument('--output_path', dest='output_path', type=str, required=True,
     #                     help='Output path for generated image')
     # args = parser.parse_args()
-    main(None)
+
+    threshold = 0.7
+    gradcam_names = ["grad++_cam", "eigen_cam"]
+    heatmap_name = "name"
+    model_paths = [
+        "checkpoints/experiment_name.dataset3.densenet121-pretrain.42.pkl.best_auroc",
+    ]
+
+    split_path = "42/dataset3"
+    miou_tresholds(split_path, heatmap_name, threshold, gradcam_names, model_paths)
