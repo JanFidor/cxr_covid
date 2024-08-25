@@ -311,11 +311,11 @@ def train_dataset_3(
     
     split_dir = f"splits/{split_name}/dataset3"
     if split_name:
-        trainds.ds1.df = pandas.read_csv(f"{split_dir}/traindf1.csv")
-        valds.ds1.df = pandas.read_csv(f"{split_dir}/valdf1.csv")
+        trainds.ds1.df = pandas.read_csv(f"{split_dir}/negative-train.csv")
+        valds.ds1.df = pandas.read_csv(f"{split_dir}/negative-val.csv")
 
-        trainds.ds2.df = pandas.read_csv(f"{split_dir}/traindf2.csv")
-        valds.ds2.df = pandas.read_csv(f"{split_dir}/valdf2.csv")
+        trainds.ds2.df = pandas.read_csv(f"{split_dir}/positive-train.csv")
+        valds.ds2.df = pandas.read_csv(f"{split_dir}/positive-val.csv")
     else:
     # split on a per-patient basis
         trainvaldf1, testdf1, trainvaldf2, testdf2 = ds3_grouped_split(trainds.ds1.df, trainds.ds2.df, random_state=seed)
