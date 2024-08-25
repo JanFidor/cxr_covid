@@ -146,6 +146,21 @@ def get_train_augmentations(name):
             v2.Resize(224),
             v2.RandomRotation(10),
             v2.RandomHorizontalFlip(0.5)
+        ]),
+        "weak-random": v2.Compose([
+            v2.RandomResizedCrop(224, 0.95),
+            v2.RandomRotation(10),
+            v2.RandomHorizontalFlip(0.5)
+        ]),
+        "medium-random": v2.Compose([
+            v2.RandomResizedCrop(224, 0.85),
+            v2.RandomRotation(10),
+            v2.RandomHorizontalFlip(0.5)
+        ]),
+        "strong-random": v2.Compose([
+            v2.RandomResizedCrop(224, 0.75),
+            v2.RandomRotation(10),
+            v2.RandomHorizontalFlip(0.5)
         ])
     }.get(name, v2.Identity())
 
