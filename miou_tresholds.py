@@ -10,6 +10,7 @@ import torch
 import seaborn as sn
 from tqdm import tqdm
 from pathlib import Path
+import matplotlib.pyplot as plt
 
 from models.cxrclassifier import AlexNet
 from torchvision.models.densenet import DenseNet
@@ -29,7 +30,7 @@ from datasets import (
     DomainConfoundedDataset
 )
 
-BATCH_SIZE = 1
+BATCH_SIZE = 8
 
 def load_model(model_path):
     cpt = torch.load(model_path, weights_only=False)
@@ -55,8 +56,9 @@ def get_preprocessing(name):
         "strong": v2.Compose([
             v2.CenterCrop(int(224 * 0.75)),
             v2.Resize(224),
-        ])
-    }.get(name, v2.Identity())
+        ]),
+        "none": v2.Identity()
+    }[name]
 
 def get_gradcams(gradcam_names, model_path):
     model = load_model(model_path)
@@ -115,13 +117,14 @@ def create_miou_matrix(threshold, gradcam_names, model_paths, dataset):
             matrix[i][ii] = calculate_saliency_jaccard(threshold, cam1, cam2, dataloader)
     return matrix
 
-def create_heatmap(save_path, threshold, gradcam_names, model_paths, dataloader, legend=False):
+def create_heatmap(save_path, threshold, gradcam_names, model_paths, dataloader):
     matrix = create_miou_matrix(threshold, gradcam_names, model_paths, dataloader)
     
-    plot = sn.heatmap(matrix, annot=True, cbar=legend)
+    plot = sn.heatmap(matrix, annot=True, vmin=0.4, vmax=1)
     fig = plot.get_figure()
     fig.savefig(save_path) 
     sn.reset_defaults()
+    plt.clf()
 
 def miou_tresholds(preprocess, split_path, heatmap_name, threshold, gradcam_names, model_paths):
     # threshold = 0.7
@@ -156,8 +159,8 @@ def miou_tresholds(preprocess, split_path, heatmap_name, threshold, gradcam_name
 
     # create_heatmap(f"{save_dir}/negative-train", threshold, gradcam_names, model_paths, trainds.ds1, True)
     # create_heatmap(f"{save_dir}/positive-train", threshold, gradcam_names, model_paths, trainds.ds2, True)
-    create_heatmap(f"{save_dir}/negative-val", threshold, gradcam_names, model_paths, valds.ds1, True)
-    create_heatmap(f"{save_dir}/positive-val", threshold, gradcam_names, model_paths, valds.ds2, True)
+    create_heatmap(f"{save_dir}/negative-val", threshold, gradcam_names, model_paths, valds.ds1)
+    create_heatmap(f"{save_dir}/positive-val", threshold, gradcam_names, model_paths, valds.ds2)
 
 if __name__ == "__main__":
     # parser = argparse.ArgumentParser(
