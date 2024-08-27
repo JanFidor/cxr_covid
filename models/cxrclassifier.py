@@ -224,8 +224,7 @@ class CXRClassifier(object):
         best_loss = None 
         best_auroc = None
 
-        for i in range(max_epochs):
-            i_epoch = i + 1
+        for i_epoch in range(max_epochs + 1):
             print("-------- Epoch {:03d} --------".format(i_epoch))
             
             trainloss = self._train_epoch(train_dataloader, i_epoch)
@@ -243,7 +242,8 @@ class CXRClassifier(object):
                 
             # If the validation loss has not improved, decay the 
             # learning rate
-            scheduler.step()
+            if i_epoch != 0:
+                scheduler.step()
 
             # Write information on this epoch to a log.
             logstr = "Epoch {:03d}: ".format(i_epoch) +\
@@ -292,10 +292,7 @@ class CXRClassifier(object):
         loss = 0
         logged_per_class = {}
         for i, batch in enumerate(tqdm(train_dataloader, leave=False)):
-            inputs, labels, _, ds = batch
-
-            if 1 in set(labels[:, -1].tolist()):
-                damn = True
+            inputs, labels, _, _ = batch
             # batch size may differ from batch_size for the last  
             # batch in an epoch
             current_batch_size = inputs.shape[0]
@@ -313,19 +310,22 @@ class CXRClassifier(object):
             covid_labels = labels.to(torch.int)[:,-1]
             auroc.update(outputs[:,-1], covid_labels)
             # update the network's weights
+            
             batch_loss.backward()
-            self.optimizer.step()
-
             # Update the running sum of the loss
             step_loss = batch_loss.data.item()*current_batch_size
             loss += step_loss
+
+            if epoch == 0: break
+            self.optimizer.step()
 
             #IMPORTANT
             if (i + 1) % 25 == 0: 
                 log_metrics("train", epoch, step_loss / current_batch_size, auroc.compute().item())
 
             self.log_images("train", inputs, covid_labels, logged_per_class, epoch)
-        log_metrics("train", epoch, loss / len(train_dataloader), auroc.compute().item())
+        if epoch != 0:
+            log_metrics("train", epoch, loss / len(train_dataloader), auroc.compute().item())
         return loss
 
     def _val_epoch(self, val_dataloader, epoch):
@@ -335,13 +335,10 @@ class CXRClassifier(object):
         loss = 0
         logged_per_class = {}
         for i, batch in enumerate(tqdm(val_dataloader, leave=False)):
-            inputs, labels, _, ds = batch
+            inputs, labels, _, _ = batch
             # batch size may differ from batch_size for the last  
             # batch in an epoch
             current_batch_size = inputs.shape[0]
-
-            if 1 in set(labels[:, -1].tolist()):
-                damn = True
 
             # Transfer inputs (images) and labels (arrays of ints) to 
             # GPU
