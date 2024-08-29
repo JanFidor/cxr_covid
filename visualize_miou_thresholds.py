@@ -78,7 +78,7 @@ def create_miou_matrix(thresholded_maps):
     d = len(thresholded_maps)
     matrix = [[0]*d for _ in range(d)]
 
-    for i in tqdm(range(d)):
+    for i in range(d):
         for ii in range(d):
             jaccard = JaccardIndex(task='binary')
 
@@ -105,8 +105,8 @@ def gradcam_visualizations(save_path, thresholds, gradcams, dataset):
         num_workers=0,
     )
 
-    for img_id, (img, l, _, _) in enumerate(dataloader):
-        if img_id == 50: break
+    for img_id, (img, l, _, _) in enumerate(tqdm(dataloader)):
+        if img_id == 70: break
         img_path = save_path / str(img_id)
         Path(img_path).mkdir(parents=True, exist_ok=True)
 
@@ -134,7 +134,7 @@ def gradcam_visualizations(save_path, thresholds, gradcams, dataset):
             ]
             matrix = create_miou_matrix(thresholded_maps)
         
-            plot = sn.heatmap(matrix, annot=True, vmin=0.4, vmax=1)
+            plot = sn.heatmap(matrix, annot=True, vmin=0, vmax=1)
             fig = plot.get_figure()
             fig.savefig(img_path / str(thresh) / "miou.png") 
             sn.reset_defaults()
@@ -170,6 +170,7 @@ def visualize_miou_tresholds(preprocess, split_path, heatmap_name, thresholds, g
     Path(root_dir).mkdir(parents=True, exist_ok=True)
 
     for gradcam_name in gradcam_names:
+        print(f"Starting visualizations for {gradcam_name}")
         path = root_dir / gradcam_name
         gradcams = [
             get_gradcam(gradcam_name, path) for path in model_paths
@@ -187,13 +188,13 @@ if __name__ == "__main__":
     #                     help='Output path for generated image')
     # args = parser.parse_args()
 
-    thresholds = [0.7, 0.8, 0.9]
-    gradcam_names = ["grad++_cam", "eigen_cam"]
-    heatmap_name = "strong"
-    model_paths = [
-        "checkpoints/experiment_name.dataset3.densenet121-pretrain.42.pkl.best_auroc",
-        "checkpoints/experiment_name.dataset3.densenet121-pretrain.42.pkl.best_loss"
-    ]
+    thresholds = [0.5, 0.6, 0.7]
+    gradcam_names = ["grad++_cam", "eigen_cam", "eigengrad_cam"]
+    for name in [
+        "small_batch-none", "small_batch-weak", "small_batch-strong",
+        "big_batch-none"
+    ]:
+        model_paths =list(Path("checkpoints", "strong-strong").rglob("*"))
 
-    split_path = "42/dataset3"
-    visualize_miou_tresholds("strong", split_path, heatmap_name, thresholds, gradcam_names, model_paths)
+        split_path = "42/dataset3"
+        visualize_miou_tresholds(name.split("-")[1], split_path, name, thresholds, gradcam_names, model_paths)
