@@ -224,6 +224,7 @@ class CXRClassifier(object):
         best_loss = None 
         best_auroc = None
 
+        self._train_epoch(train_dataloader, -1)
         for i_epoch in range(max_epochs + 1):
             print("-------- Epoch {:03d} --------".format(i_epoch))
             
@@ -316,15 +317,16 @@ class CXRClassifier(object):
             step_loss = batch_loss.data.item()*current_batch_size
             loss += step_loss
 
-            if epoch == 0: break
-            self.optimizer.step()
+            if epoch == -1: break
+            if epoch == 0:
+                self.optimizer.step()
 
             #IMPORTANT
             if (i + 1) % 25 == 0: 
                 log_metrics("train", epoch, step_loss / current_batch_size, auroc.compute().item())
 
             self.log_images("train", inputs, covid_labels, logged_per_class, epoch)
-        if epoch != 0:
+        if epoch > 0:
             log_metrics("train", epoch, loss / len(train_dataloader), auroc.compute().item())
         return loss
 
