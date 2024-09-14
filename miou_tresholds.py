@@ -29,49 +29,9 @@ from datasets import (
     BIMCVNegativeDataset, 
     DomainConfoundedDataset
 )
+from utils import get_gradcam, get_preprocessing
 
 BATCH_SIZE = 8
-
-def load_model(model_path):
-    cpt = torch.load(model_path, weights_only=False)
-    return cpt["model"]
-
-def get_gradcam_layers(model):
-    if isinstance(model, AlexNet):
-        return [model.features[-3]]
-    elif isinstance(model, DenseNet):
-        return [model.features[-2].denselayer16.conv2]
-    raise KeyError
-
-def get_preprocessing(name):
-    return {
-        "weak": v2.Compose([
-            v2.CenterCrop(int(224 * 0.95)),
-            v2.Resize(224),
-        ]),
-        "medium": v2.Compose([
-            v2.CenterCrop(int(224 * 0.85)),
-            v2.Resize(224),
-        ]),
-        "strong": v2.Compose([
-            v2.CenterCrop(int(224 * 0.75)),
-            v2.Resize(224),
-        ]),
-        "none": v2.Identity()
-    }[name]
-
-def get_gradcams(gradcam_names, model_path):
-    model = load_model(model_path)
-    gradcam_layers = get_gradcam_layers(model)
-
-    gradcams = {
-        "grad_cam": GradCAM(model=model, target_layers=gradcam_layers),
-        "grad++_cam": GradCAMPlusPlus(model=model, target_layers=gradcam_layers),
-        "eigen_cam": EigenCAM(model=model, target_layers=gradcam_layers),
-        "eigengrad_cam": EigenGradCAM(model=model, target_layers=gradcam_layers),
-    }
-    is_not_none = lambda x: x is not None
-    return list(filter(is_not_none, [gradcams.get(n, None) for n in gradcam_names]))
 
 def model_name_from_path(model_path):
     return model_path
@@ -85,7 +45,7 @@ def generate_localisation(threshold, gradcam, tensors):
     return torch.tensor(saliency_map > threshold)
 
 def calculate_saliency_jaccard(threshold, gradcams1, gradcams2, dataloader):
-    jaccard = JaccardIndex(task='multiclass', num_classes=2)
+    jaccard = JaccardIndex(task='binary')
     mean_jaccard = MeanMetric()
     for tensors, _, _, _ in dataloader:
         for cam1, cam2 in zip(gradcams1, gradcams2):
@@ -104,7 +64,7 @@ def create_miou_matrix(threshold, gradcam_names, model_paths, dataset):
         num_workers=0,
     )
     all_gradcams = [
-        get_gradcams(gradcam_names, path) for path in model_paths
+        [get_gradcam(name, path) for name in gradcam_names] for path in model_paths
     ]
 
     d = len(model_paths)
@@ -127,15 +87,6 @@ def create_heatmap(save_path, threshold, gradcam_names, model_paths, dataloader)
     plt.clf()
 
 def miou_tresholds(preprocess, split_path, heatmap_name, threshold, gradcam_names, model_paths):
-    # threshold = 0.7
-    # gradcam_names = ["grad++_cam", "eigen_cam"]
-    # heatmap_name = ""
-    # model_paths = [
-    #     "checkpoints/experiment_name.dataset3.densenet121-pretrain.42.pkl.best_auroc",
-    # ]
-
-    # split_path = "42/dataset3"
-
     augments = get_preprocessing(preprocess)
 
     trainds = DomainConfoundedDataset(
