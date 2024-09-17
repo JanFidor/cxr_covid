@@ -14,8 +14,8 @@ def initialize_wandb(experiment_name, group, project, config):
     )
 
 def log_metrics(stage, epoch, epoch_loss):
-    log_dict = {f"loss/{stage}": epoch_loss,}
-    wandb.log(log_dict, epoch=epoch)
+    log_dict = {f"loss/{stage}": epoch_loss, "epoch": epoch}
+    wandb.log(log_dict)
 
 def log_confmat(stage, epoch, confmat, class_names):
     f, ax = plt.subplots(figsize = (15,10)) 
@@ -30,7 +30,7 @@ def log_confmat(stage, epoch, confmat, class_names):
     
     wandb.log({
         f"confmat/{stage}" : wandb.Image(f)
-    }, epoch=epoch)
+    })
     plt.close()
         
 def print_classwise_metric(stage, metric_name, metric, class_names):
@@ -41,6 +41,6 @@ def print_classwise_metric(stage, metric_name, metric, class_names):
 
 def log_image(_type, stage, image, class_name, epoch, logged_idx):
     image_wandb = wandb.Image(image, caption=f"{class_name}")
-    wandb.log({f"{_type}/{stage}/{class_name}/{logged_idx}": image_wandb}, step=epoch)
+    wandb.log({f"{_type}/{stage}/{class_name}/{logged_idx}": image_wandb})
 
 
