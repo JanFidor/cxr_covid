@@ -372,6 +372,7 @@ def train_dataset_3(
     wandb.save(checkpointpath)
     wandb.save(f"{checkpointpath}.best_auroc")
     wandb.save(f"{checkpointpath}.best_loss")
+    wandb.save(f"{checkpointpath}.last")
 
 def main():
     parser = argparse.ArgumentParser(description='Training script for COVID-19 '

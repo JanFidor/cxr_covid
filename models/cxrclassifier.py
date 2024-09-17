@@ -256,6 +256,7 @@ class CXRClassifier(object):
                     logfile.write(logstr + '\n')
             if verbose:
                 print(logstr)
+        self.checkpoint(suffix='.last')
         self.load_checkpoint(self.checkpoint_path+'.best_auroc')
         return self.model
 
