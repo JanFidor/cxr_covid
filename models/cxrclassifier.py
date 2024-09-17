@@ -289,7 +289,7 @@ class CXRClassifier(object):
             logged_per_class[l] = logged + 1
 
     def _train_epoch(self, train_dataloader, epoch):
-        auroc = AUROC('binary')
+        auroc = AUROC('binary').cpu()
         self.model.train(True)
         loss = 0
         logged_per_class = {}
@@ -310,7 +310,7 @@ class CXRClassifier(object):
             batch_loss = self.lossfunc(outputs, labels)
 
             covid_labels = labels.to(torch.int)[:,-1]
-            auroc.update(outputs[:,-1], covid_labels)
+            auroc.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
             # update the network's weights
             
             batch_loss.backward()
@@ -327,12 +327,11 @@ class CXRClassifier(object):
                 log_metrics("train", epoch, step_loss / current_batch_size, auroc.compute().item())
 
             self.log_images("train", inputs, covid_labels, logged_per_class, epoch)
-        if epoch > 0:
-            log_metrics("train", epoch, loss / len(train_dataloader), auroc.compute().item())
+        log_metrics("train", epoch, loss / len(train_dataloader), auroc.compute().item())
         return loss
 
     def _val_epoch(self, val_dataloader, epoch):
-        auroc = AUROC('binary')
+        auroc = AUROC('binary').cpu()
         self.model.train(False)
         
         loss = 0
@@ -350,7 +349,7 @@ class CXRClassifier(object):
             outputs = self.model(inputs)
 
             covid_labels = labels.to(torch.int)[:,-1]
-            auroc.update(outputs[:,-1], covid_labels)
+            auroc.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
             # Calculate the loss
             batch_loss = self.lossfunc(outputs, labels)
 
