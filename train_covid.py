@@ -7,6 +7,7 @@
 
 import os
 import sys
+from pathlib import Path
 
 import argparse
 
@@ -29,6 +30,7 @@ from datasets import (
     DomainConfoundedDataset
 )
 from logger import initialize_wandb
+from utils import get_augmentations, get_preprocessing
 import wandb
 
 
@@ -127,78 +129,6 @@ def _find_index(ds, desired_label):
     else:
         raise ValueError("Label {:s} not found.".format(desired_label))
 
-def get_train_augmentations(name):
-    return {
-        "weak": v2.Compose([
-            v2.CenterCrop(int(224 * 0.95)),
-            v2.Resize(224),
-            v2.RandomRotation(5),
-            v2.RandomHorizontalFlip(0.5)
-        ]),
-        "medium": v2.Compose([
-            v2.CenterCrop(int(224 * 0.85)),
-            v2.Resize(224),
-            v2.RandomRotation(10),
-            v2.RandomHorizontalFlip(0.5)
-        ]),
-        "strong": v2.Compose([
-            v2.CenterCrop(int(224 * 0.75)),
-            v2.Resize(224),
-            v2.RandomRotation(10),
-            v2.RandomHorizontalFlip(0.5)
-        ]),
-        "strongXL": v2.Compose([
-            v2.CenterCrop(int(224 * 0.70)),
-            v2.Resize(224),
-            v2.RandomRotation(12.5),
-            v2.RandomHorizontalFlip(0.5)
-        ]),
-        "strongXXL": v2.Compose([
-            v2.CenterCrop(int(224 * 0.65)),
-            v2.Resize(224),
-            v2.RandomRotation(15),
-            v2.RandomHorizontalFlip(0.5)
-        ]),
-        "cropXXXL": v2.Compose([
-            v2.CenterCrop(int(224 * 0.55)),
-            v2.Resize(224),
-            v2.RandomRotation(5),
-            v2.RandomHorizontalFlip(0.5)
-        ]),
-        "weak-random": v2.Compose([
-            v2.RandomResizedCrop(224, [0.95, 1]),
-            v2.RandomRotation(5),
-            v2.RandomHorizontalFlip(0.5)
-        ]),
-        "medium-random": v2.Compose([
-            v2.RandomResizedCrop(224, [0.85, 1]),
-            v2.RandomRotation(10),
-            v2.RandomHorizontalFlip(0.5)
-        ]),
-        "strong-random": v2.Compose([
-            v2.RandomResizedCrop(224, [0.75, 1]),
-            v2.RandomRotation(10),
-            v2.RandomHorizontalFlip(0.5)
-        ]),
-        "none": v2.Identity()
-    }[name]
-
-def get_preprocessing(name):
-    return {
-        "weak": v2.Compose([
-            v2.CenterCrop(int(224 * 0.95)),
-            v2.Resize(224),
-        ]),
-        "medium": v2.Compose([
-            v2.CenterCrop(int(224 * 0.85)),
-            v2.Resize(224),
-        ]),
-        "strong": v2.Compose([
-            v2.CenterCrop(int(224 * 0.75)),
-            v2.Resize(224),
-        ]),
-        "none": v2.Identity()
-    }[name]
 
 def train_dataset_1(
     experiment_name,
@@ -308,21 +238,29 @@ def train_dataset_3(
     experiment_name,
     seed,
     model_name,
+    batch_size,
     freeze_features=False,
-    augments_name=None,
     preprocessing=None,
-    split_name=None
+    augmentation=None,
+    split_name=None,
+    group_name=None,
+    
 ):
-    train_augments = get_train_augmentations(augments_name)
+    augments = get_augmentations(augmentation)
     preprocessing = get_preprocessing(preprocessing)
     # Unlike the other datasets, there is overlap in patients between the
     # BIMCV-COVID-19+ and BIMCV-COVID-19- datasets, so we have to perform the 
     # train/val/test split *after* creating the datasets.
 
     # Start by getting the *full* dataset - not split!
+
+    train_transforms = v2.Compose([
+        preprocessing, augments
+    ])
+
     trainds = DomainConfoundedDataset(
-            BIMCVNegativeDataset(fold='all', augments=train_augments, labels='chestx-ray14', random_state=seed),
-            BIMCVCOVIDDataset(fold='all', augments=train_augments, labels='chestx-ray14', random_state=seed)
+            BIMCVNegativeDataset(fold='all', augments=train_transforms, labels='chestx-ray14', random_state=seed),
+            BIMCVCOVIDDataset(fold='all', augments=train_transforms, labels='chestx-ray14', random_state=seed)
             )
     valds = DomainConfoundedDataset(
             BIMCVNegativeDataset(fold='all', labels='chestx-ray14', augments=preprocessing, random_state=seed),
@@ -353,15 +291,19 @@ def train_dataset_3(
 
     # generate log and checkpoint paths
     logpath = f'logs/{experiment_name}.dataset3.{model_name}.{seed}.log'
-    checkpointpath = f'checkpoints/{experiment_name}.dataset3.{model_name}.{seed}.pkl'
+
+    checkpointdir = f"checkpoints/{group_name or 'ungrouped'}/"
+
+    Path(checkpointdir).mkdir(parents=True, exist_ok=True)
+    checkpointpath = f"{checkpointdir}/{experiment_name}-{seed}.pkl"
 
     classifier = CXRClassifier()
     classifier.train(
         trainds,
         valds,
-        max_epochs=30,
+        max_epochs=1,
         lr=0.01, 
-        batch_size=16,
+        batch_size=batch_size,
         weight_decay=1e-4,
         logpath=logpath,
         checkpoint_path=checkpointpath,
@@ -369,10 +311,7 @@ def train_dataset_3(
         model_name=model_name,
         freeze_features=freeze_features,
     )
-    wandb.save(checkpointpath)
-    wandb.save(f"{checkpointpath}.best_auroc")
-    wandb.save(f"{checkpointpath}.best_loss")
-    wandb.save(f"{checkpointpath}.last")
+    wandb.save(f"{checkpointpath}*", base_path=checkpointdir)
 
 def main():
     parser = argparse.ArgumentParser(description='Training script for COVID-19 '
@@ -386,6 +325,8 @@ def main():
                         help='The network type. Choose "densenet121-random", "densenet121-pretrain", "logistic", or "alexnet".')
     parser.add_argument('--split', dest='split', type=str, default=None, required=False,
                         help='Split name')
+    parser.add_argument('--batch', dest='batch', type=int, default=256, required=False,
+                        help='Experiment name')   
     parser.add_argument('--device-index', dest='deviceidx', type=int, default=None, required=False,
                         help='The index of the GPU device to use. If None, use the default GPU.')
     parser.add_argument('--augments', dest='augments', type=str, default="none", required=False,
@@ -440,9 +381,11 @@ def main():
             args.seed, 
             model_name=args.network, 
             freeze_features=(args.network.lower() == 'logistic'),
-            augments_name=args.augments,
+            augmentation=args.augments,
             preprocessing=args.preprocessing,
-            split_name=args.split
+            split_name=args.split,
+            group_name=args.group,
+            batch_size=args.batch,
         )
 
 if __name__ == "__main__":

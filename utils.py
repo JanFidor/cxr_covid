@@ -69,72 +69,62 @@ def get_train_augmentations(name):
         "none": v2.Identity()
     }[name]
 
+def denormalize(x):
+    _mean = torch.tensor(MEAN)
+    _std = torch.tensor(STD)
+    
+    x = x.permute(1, 2, 0)
+    x = _std * x + _mean
+    return x.permute(2, 0, 1)
+
+#color-0.5|rot-10|flip-0.5
+def get_augmentations(name):
+    if name == 'none': return v2.Identity()
+
+    all_augments = name.split("|")
+    if len(all_augments) != 1:
+        return v2.Compose([
+            get_augmentations(n) for n in all_augments
+        ])
+    
+    aug_type, intensity = all_augments[0].split("-")
+    intensity = float(intensity)
+    if aug_type == "color":
+        return v2.Compose([
+            v2.Lambda(lambda x: denormalize(x)),
+            v2.ColorJitter(intensity, intensity, 0, 0),
+            v2.Normalize(MEAN, STD),
+        ])
+    elif aug_type == "rot":
+        return v2.RandomRotation(intensity)
+    elif aug_type == "flip":
+        return v2.RandomHorizontalFlip(intensity)
+
+    raise KeyError("incorrect augmentation")
+
+#crop_cent-0.5|crop_rand-0.5|rot-10
 def get_preprocessing(name):
-    return {
-        "weak": v2.Compose([
-            v2.CenterCrop(int(224 * 0.95)),
+    if name == 'none': return v2.Identity()
+
+    all_prepro = name.split("|")
+    if len(all_prepro) != 1:
+        return v2.Compose([
+            get_preprocessing(n) for n in all_prepro
+        ])
+    
+    prepro_type, intensity = all_prepro[0].split("-")
+    intensity = float(intensity)
+    if prepro_type == "crop_cent":
+        return v2.Compose([
+            v2.CenterCrop(int(224 * intensity)),
             v2.Resize(224),
-        ]),
-        "weak-padded": v2.Compose([
-            v2.RandomCrop(224, int(224 * 0.05), fill=NORMALIZED_BLACK),
-        ]),
-        "medium": v2.Compose([
-            v2.CenterCrop(int(224 * 0.85)),
-            v2.Resize(224),
-        ]),
-        "medium-padded": v2.Compose([
-            v2.RandomCrop(224, int(224 * 0.15), fill=NORMALIZED_BLACK),
-        ]),
-        "strong": v2.Compose([
-            v2.CenterCrop(int(224 * 0.75)),
-            v2.Resize(224),
-        ]),
-        "strong-padded": v2.Compose([
-            v2.RandomCrop(224, int(224 * 0.25), fill=NORMALIZED_BLACK),
-        ]),
-        "strong-rot": v2.Compose([
-            v2.CenterCrop(int(224 * 0.75)),
-            v2.Resize(224),
-            v2.Lambda(lambda x: F.rotate(x, 10))
-        ]),
-        "strongXL": v2.Compose([
-            v2.CenterCrop(int(224 * 0.70)),
-            v2.Resize(224)
-        ]),
-        "strongXL-padded": v2.Compose([
-            v2.RandomCrop(224, int(224 * 0.30), fill=NORMALIZED_BLACK),
-        ]),
-        "strongXL-rot": v2.Compose([
-            v2.CenterCrop(int(224 * 0.70)),
-            v2.Resize(224),
-            v2.Lambda(lambda x: F.rotate(x, 12.5)),
-        ]),
-        "strongXXL": v2.Compose([
-            v2.CenterCrop(int(224 * 0.65)),
-            v2.Resize(224),
-        ]),
-        "strongXXL-padded": v2.Compose([
-            v2.RandomCrop(224, int(224 * 0.35), fill=NORMALIZED_BLACK),
-        ]),
-        "strongXXL-rot": v2.Compose([
-            v2.CenterCrop(int(224 * 0.65)),
-            v2.Resize(224),
-            v2.Lambda(lambda x: F.rotate(x, 15)),
-        ]),
-        "cropXXXL": v2.Compose([
-            v2.CenterCrop(int(224 * 0.55)),
-            v2.Resize(224)
-        ]),
-        "cropXXXL-padded": v2.Compose([
-            v2.RandomCrop(224, int(224 * 0.45), fill=NORMALIZED_BLACK),
-        ]),
-        "cropXXXL-rot": v2.Compose([
-            v2.CenterCrop(int(224 * 0.55)),
-            v2.Resize(224),
-            v2.Lambda(lambda x: F.rotate(x, 5)),
-        ]),
-        "none": v2.Identity()
-    }[name]
+        ])
+    elif prepro_type == "crop_rand":
+        return v2.RandomCrop(224, int(224 * (1 - intensity)), fill=NORMALIZED_BLACK)
+    elif prepro_type == "rot":
+        return v2.Lambda(lambda x: F.rotate(x, intensity))
+
+    raise KeyError("incorrect augmentation")
 
 
 def get_gradcam(gradcam_name, model_path):
@@ -163,8 +153,5 @@ def load_model(model_path):
 
 
 def denormalize_image(image):
-    img = image.numpy().transpose((1, 2, 0))  # numpy is [h, w, c] 
-    _mean = np.array(MEAN)  # mean of your dataset
-    _std = np.array(STD)  # std of your dataset
-    img = _std * img + _mean
+    img = denormalize(image).numpy().transpose((1, 2, 0))
     return img.clip(0, 1)
