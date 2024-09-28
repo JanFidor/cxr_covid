@@ -11,6 +11,8 @@ from pytorch_grad_cam import GradCAM, EigenCAM, GradCAMPlusPlus, EigenGradCAM
 MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225]
 
+NORMALIZED_BLACK = (-np.array(MEAN) / np.array(STD)).tolist()
+
 def get_train_augmentations(name):
     return {
         "weak": v2.Compose([
@@ -73,13 +75,22 @@ def get_preprocessing(name):
             v2.CenterCrop(int(224 * 0.95)),
             v2.Resize(224),
         ]),
+        "weak-padded": v2.Compose([
+            v2.RandomCrop(224, int(224 * 0.05), fill=NORMALIZED_BLACK),
+        ]),
         "medium": v2.Compose([
             v2.CenterCrop(int(224 * 0.85)),
             v2.Resize(224),
         ]),
+        "medium-padded": v2.Compose([
+            v2.RandomCrop(224, int(224 * 0.15), fill=NORMALIZED_BLACK),
+        ]),
         "strong": v2.Compose([
             v2.CenterCrop(int(224 * 0.75)),
             v2.Resize(224),
+        ]),
+        "strong-padded": v2.Compose([
+            v2.RandomCrop(224, int(224 * 0.25), fill=NORMALIZED_BLACK),
         ]),
         "strong-rot": v2.Compose([
             v2.CenterCrop(int(224 * 0.75)),
@@ -90,6 +101,9 @@ def get_preprocessing(name):
             v2.CenterCrop(int(224 * 0.70)),
             v2.Resize(224)
         ]),
+        "strongXL-padded": v2.Compose([
+            v2.RandomCrop(224, int(224 * 0.30), fill=NORMALIZED_BLACK),
+        ]),
         "strongXL-rot": v2.Compose([
             v2.CenterCrop(int(224 * 0.70)),
             v2.Resize(224),
@@ -98,6 +112,9 @@ def get_preprocessing(name):
         "strongXXL": v2.Compose([
             v2.CenterCrop(int(224 * 0.65)),
             v2.Resize(224),
+        ]),
+        "strongXXL-padded": v2.Compose([
+            v2.RandomCrop(224, int(224 * 0.35), fill=NORMALIZED_BLACK),
         ]),
         "strongXXL-rot": v2.Compose([
             v2.CenterCrop(int(224 * 0.65)),
@@ -108,7 +125,9 @@ def get_preprocessing(name):
             v2.CenterCrop(int(224 * 0.55)),
             v2.Resize(224)
         ]),
-
+        "cropXXXL-padded": v2.Compose([
+            v2.RandomCrop(224, int(224 * 0.45), fill=NORMALIZED_BLACK),
+        ]),
         "cropXXXL-rot": v2.Compose([
             v2.CenterCrop(int(224 * 0.55)),
             v2.Resize(224),
