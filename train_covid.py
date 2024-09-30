@@ -297,11 +297,11 @@ def train_dataset_3(
     Path(checkpointdir).mkdir(parents=True, exist_ok=True)
     checkpointpath = f"{checkpointdir}/{experiment_name}-{seed}.pkl"
 
-    classifier = CXRClassifier()
+    classifier = CXRClassifier(seed=seed)
     classifier.train(
         trainds,
         valds,
-        max_epochs=1,
+        max_epochs=20,
         lr=0.01, 
         batch_size=batch_size,
         weight_decay=1e-4,
