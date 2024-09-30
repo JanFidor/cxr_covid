@@ -3,6 +3,7 @@ import torchvision.transforms.functional as F
 from torchvision.models.densenet import DenseNet
 import torch
 import numpy as np
+import math
 
 from models.cxrclassifier import AlexNet
 from pytorch_grad_cam import GradCAM, EigenCAM, GradCAMPlusPlus, EigenGradCAM
@@ -119,8 +120,11 @@ def get_preprocessing(name):
             v2.CenterCrop(int(224 * intensity)),
             v2.Resize(224),
         ])
-    elif prepro_type == "crop_rand":
-        return v2.RandomCrop(224, int(224 * (1 - intensity)), fill=NORMALIZED_BLACK)
+    elif prepro_type == "crop_pad":
+        return v2.Compose([
+            v2.CenterCrop(int(224 * intensity)),
+            v2.Pad(math.ceil(224 * (1 - intensity)), fill=NORMALIZED_BLACK),
+        ])
     elif prepro_type == "rot":
         return v2.Lambda(lambda x: F.rotate(x, intensity))
 
