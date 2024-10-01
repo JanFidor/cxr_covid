@@ -12,6 +12,7 @@ from tqdm import tqdm
 from pathlib import Path
 import matplotlib.pyplot as plt
 import os
+import argparse
 
 from models.cxrclassifier import AlexNet, CXRClassifier
 from torchvision.models.densenet import DenseNet
@@ -53,6 +54,7 @@ def model_augment_auroc(model, augments, dataset):
         y_hat = model(x)
 
         auroc.update(y_hat[:,-1], y.to(torch.int)[:,-1])
+        break
     value = auroc.compute().item()
     auroc.reset()
     return value
@@ -129,14 +131,17 @@ def auroc_augments(split_path, group_paths, stage):
     create_heatmap(preprocess_lst, group_paths, dataset, save_path)
 
 if __name__ == "__main__":
-    split_path = "42/dataset3"
-    # model_paths = list(Path("checkpoints/auroc_comparison").rglob("*"))
-    pad_type = "crop_cent"
-    for pad_type in ["crop_cent", "crop_pad"]:
-        for has_color in [True, False]:
-            group_paths = list(sorted([
-                x[0] for x in os.walk("checkpoints/16/") if pad_type in x[0] and (("color" in x[0]) == has_color)
-            ]))
-    
+    parser = argparse.ArgumentParser(description='')
+    parser.add_argument('--split_path', dest='split_path', type=str, default="42/dataset3", required=False)
+    parser.add_argument('--pad_type', dest='pad_type', type=str, required=True)
+    parser.add_argument('--has_color', dest='has_color', type=bool, required=True)
+    parser.add_argument('--batch', dest='batch', type=str, required=True)
 
-            auroc_augments(split_path, group_paths, "val")
+    args = parser.parse_args()
+    group_paths = list(sorted([
+        x[0] for x in os.walk("checkpoints/") if args.pad_type in x[0] and (("color" in x[0]) == args.has_color and args.batch in x[0])
+    ]))
+
+
+    auroc_augments(args.split_path, group_paths, "val")
+    auroc_augments(args.split_path, group_paths, "train")
