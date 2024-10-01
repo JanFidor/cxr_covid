@@ -11,8 +11,9 @@ import seaborn as sn
 from tqdm import tqdm
 from pathlib import Path
 import matplotlib.pyplot as plt
+import os
 
-from models.cxrclassifier import AlexNet
+from models.cxrclassifier import AlexNet, CXRClassifier
 from torchvision.models.densenet import DenseNet
 from pytorch_grad_cam import GradCAM, EigenCAM, GradCAMPlusPlus, EigenGradCAM
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
@@ -30,7 +31,7 @@ from datasets import (
     DomainConfoundedDataset
 )
 from utils import load_model, get_preprocessing
-from torchmetrics import AUROC
+from torchmetrics import AUROC, MeanMetric
 
 BATCH_SIZE = 8
 
@@ -56,27 +57,33 @@ def model_augment_auroc(model, augments, dataset):
     auroc.reset()
     return value
 
-def create_miou_matrix(augments_lst, model_paths, dataset):
-    n_model = len(model_paths)
+def create_miou_matrix(augments_lst, group_paths, dataset):
+    n_model = len(group_paths)
     n_augments = len(augments_lst)
+    auroc_mean = MeanMetric()
 
 
     matrix = [[0]*n_augments for _ in range(n_model)]
 
-    for i, path in tqdm(enumerate(model_paths)):
+    for i, group_path in tqdm(enumerate(group_paths)):
+        model_paths = list(Path(group_path).rglob("*last"))
         for ii, aug in enumerate(augments_lst):
-            matrix[i][ii] = model_augment_auroc(load_model(path), aug, dataset)
+            auroc_mean.reset()
+            for path in model_paths:
+                auroc_mean.update(model_augment_auroc(load_model(path), aug, dataset))
+            matrix[i][ii] = auroc_mean.compute().item()
     return matrix
 
-def create_heatmap(augments_lst, model_paths, dataset, save_path):
-    augments = [get_preprocessing(aug) for aug in augments_lst]
-    matrix = create_miou_matrix(augments, model_paths, dataset)
+def create_heatmap(preprocessing_names, group_paths, dataset, save_path):
+    preprocessing = [get_preprocessing(pre) for pre in preprocessing_names]
+    matrix = create_miou_matrix(preprocessing, group_paths, dataset)
     
     plot = sn.heatmap(
         matrix, annot=True, vmin=0.5, vmax=1
     )
-    plot.set_xticklabels(labels=augments_lst, rotation=45) 
-    plot.set_yticklabels(labels=[path.name.split('.')[0] for path in model_paths], rotation=45)
+    plot.set_xticklabels(labels=preprocessing_names, rotation=45) 
+    plot.set_yticklabels(labels=[path.split('/')[-1] for path in group_paths], rotation='horizontal')
+    plot.set_title('/'.join(save_path.split("/")[-3:]))
     plt.subplots_adjust(left=0.25, bottom=0.25)
     fig = plot.get_figure()
     # fig.update_layout(
@@ -86,7 +93,7 @@ def create_heatmap(augments_lst, model_paths, dataset, save_path):
     sn.reset_defaults()
     plt.clf()
 
-def auroc_augments(augments_lst, split_path, model_paths, stage):
+def auroc_augments(split_path, group_paths, stage):
     trainds = DomainConfoundedDataset(
             BIMCVNegativeDataset(fold='all', augments=None, labels='chestx-ray14'),
             BIMCVCOVIDDataset(fold='all', augments=None, labels='chestx-ray14')
@@ -111,27 +118,25 @@ def auroc_augments(augments_lst, split_path, model_paths, stage):
     valds.len2 = len(valds.ds2.df)
 
     root_dir = "examples/augmentation_auroc/"
-    save_dir = f"{root_dir}/{stage}.png"
-    Path(root_dir).mkdir(parents=True, exist_ok=True)
+
+    batch, augments  = group_paths[0].split("/")[1:3]
+    preprocess_lst = [path.split("/")[3] for path in group_paths]
+
+    save_path = f"{root_dir}/{batch}/{augments}/{stage}.png"
+    (Path(root_dir) / batch / augments).mkdir(parents=True, exist_ok=True)
 
     dataset = trainds if stage == 'train' else valds
-    create_heatmap(augments_lst, model_paths, dataset, save_dir)
+    create_heatmap(preprocess_lst, group_paths, dataset, save_path)
 
 if __name__ == "__main__":
-    preprocess_lst = [
-        "none",
-        "weak",
-        "medium",
-        "strong", 
-        "strongXL", 
-        "strongXL-rot", 
-        "strongXXL", 
-        "strongXXL-rot", 
-        "cropXXXL",
-        "cropXXXL-rot",
-    ]
-
     split_path = "42/dataset3"
-    model_paths = list(Path("checkpoints/auroc_comparison").rglob("*"))
+    # model_paths = list(Path("checkpoints/auroc_comparison").rglob("*"))
+    pad_type = "crop_cent"
+    for pad_type in ["crop_cent", "crop_pad"]:
+        for has_color in [True, False]:
+            group_paths = list(sorted([
+                x[0] for x in os.walk("checkpoints/16/") if pad_type in x[0] and (("color" in x[0]) == has_color)
+            ]))
+    
 
-    auroc_augments(preprocess_lst, split_path, model_paths, "val")
+            auroc_augments(split_path, group_paths, "val")
