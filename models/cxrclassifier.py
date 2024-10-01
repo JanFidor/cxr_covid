@@ -95,7 +95,7 @@ class AlexNet(Module):
 
 class CXRClassifier(object):
     'A classifier for various pathologies found in chest radiographs'
-    def __init__(self, n_logged=5, seed=42):
+    def __init__(self, n_logged=0, seed=42):
         '''
         Create a classifier for chest radiograph pathology.
         '''
@@ -234,12 +234,12 @@ class CXRClassifier(object):
             valloss /= len(val_dataset)
             
             # only save if improvement
-            if best_loss is None or valloss < best_loss: 
-                best_loss = valloss
-                self.checkpoint(suffix='.best_loss')
-            if best_auroc is None or valauroc > best_auroc:
-                best_auroc = valauroc
-                self.checkpoint(suffix='.best_auroc')
+            # if best_loss is None or valloss < best_loss: 
+            #     best_loss = valloss
+            #     self.checkpoint(suffix='.best_loss')
+            # if best_auroc is None or valauroc > best_auroc:
+            #     best_auroc = valauroc
+            #     self.checkpoint(suffix='.best_auroc')
                 
             # If the validation loss has not improved, decay the 
             # learning rate
@@ -257,7 +257,7 @@ class CXRClassifier(object):
             if verbose:
                 print(logstr)
         self.checkpoint(suffix='.last')
-        self.load_checkpoint(self.checkpoint_path+'.best_auroc')
+        # self.load_checkpoint(self.checkpoint_path+'.best_auroc')
         return self.model
 
     def log_images(self,
@@ -368,7 +368,7 @@ class CXRClassifier(object):
         Save a checkpoint to self.checkpoint_path, including the full model, 
         current epoch, learning rate, and random number generator state.
         '''
-        state = {'model': self.model,
+        state = {'model': self.model.state_dict(),
                  'rng_state': torch.get_rng_state(),
                  'LR': self.lr ,
                  'optimizer': self.optimizer.state_dict()}
@@ -387,7 +387,7 @@ class CXRClassifier(object):
 
     def load_checkpoint(self, path, load_optimizer=False):
         checkpoint = torch.load(path, weights_only=False, map_location=torch.device('cpu'))
-        self.model = checkpoint['model']
+        self.model = self.model.load_state_dict(checkpoint['model'])
         if load_optimizer:
             self.optimizer.load_state_dict(checkpoint['optimizer'])
 
