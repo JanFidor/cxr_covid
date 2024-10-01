@@ -54,7 +54,6 @@ def model_augment_auroc(model, augments, dataset):
         y_hat = model(x)
 
         auroc.update(y_hat[:,-1], y.to(torch.int)[:,-1])
-        break
     value = auroc.compute().item()
     auroc.reset()
     return value
@@ -134,14 +133,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--split_path', dest='split_path', type=str, default="42/dataset3", required=False)
     parser.add_argument('--pad_type', dest='pad_type', type=str, required=True)
-    parser.add_argument('--has_color', dest='has_color', type=bool, required=True)
+    parser.add_argument('--has_color', dest='has_color', type=int, required=True)
     parser.add_argument('--batch', dest='batch', type=str, required=True)
 
     args = parser.parse_args()
     group_paths = list(sorted([
-        x[0] for x in os.walk("checkpoints/") if args.pad_type in x[0] and (("color" in x[0]) == args.has_color and args.batch in x[0])
+        x[0] for x in os.walk("checkpoints/") if (args.pad_type in x[0] and (("color" in x[0]) == bool(args.has_color)) and args.batch in x[0])
     ]))
-
+    print(group_paths)
 
     auroc_augments(args.split_path, group_paths, "val")
     auroc_augments(args.split_path, group_paths, "train")
