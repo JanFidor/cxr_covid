@@ -5,7 +5,7 @@ import torch
 import numpy as np
 import math
 
-from models.cxrclassifier import AlexNet
+from models.cxrclassifier import AlexNet, CXRClassifier
 from pytorch_grad_cam import GradCAM, EigenCAM, GradCAMPlusPlus, EigenGradCAM
 
 
@@ -151,9 +151,15 @@ def get_gradcam_layers(model):
     raise KeyError
 
 
-def load_model(model_path):
-    cpt = torch.load(model_path, weights_only=False)
-    return cpt["model"]
+def load_model(model_path, model_name="densenet121-pretrain", n_labels=15):
+    model = CXRClassifier()
+    if model_name == 'alexnet':
+        model.build_model_scratch(n_labels)
+    else:
+        pretrained = model_name == 'logistic' or model_name.split("-")[1] == 'pretrain'
+        model.build_model(n_labels, pretrained)
+    model.load_checkpoint(model_path)
+    return model.model
 
 
 def denormalize_image(image):
