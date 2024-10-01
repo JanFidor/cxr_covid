@@ -387,7 +387,7 @@ class CXRClassifier(object):
 
     def load_checkpoint(self, path, load_optimizer=False):
         checkpoint = torch.load(path, weights_only=False, map_location=torch.device('cpu'))
-        self.model = self.model.load_state_dict(checkpoint['model'])
+        self.model.load_state_dict(checkpoint['model'])
         if load_optimizer:
             self.optimizer.load_state_dict(checkpoint['optimizer'])
 
