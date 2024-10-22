@@ -120,11 +120,12 @@ def auroc_augments(split_path, group_paths, stage):
 
     root_dir = "examples/augmentation_auroc/"
 
-    batch, augments  = group_paths[0].split("/")[1:3]
+    batch, augments, prepro  = group_paths[0].split("/")[1:4]
+    prepro = prepro.split("-")[0]
     preprocess_lst = [path.split("/")[3] for path in group_paths]
 
-    save_path = f"{root_dir}/{batch}/{augments}/{stage}.png"
-    (Path(root_dir) / batch / augments).mkdir(parents=True, exist_ok=True)
+    save_path = f"{root_dir}/{batch}/{augments}/{prepro}/{stage}.png"
+    (Path(root_dir) / batch / augments / prepro).mkdir(parents=True, exist_ok=True)
 
     dataset = trainds if stage == 'train' else valds
     create_heatmap(preprocess_lst, group_paths, dataset, save_path)
