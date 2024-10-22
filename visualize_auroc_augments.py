@@ -130,16 +130,21 @@ def auroc_augments(split_path, group_paths, stage):
     dataset = trainds if stage == 'train' else valds
     create_heatmap(preprocess_lst, group_paths, dataset, save_path)
 
+def name_fits_criteria(name, args):
+    return args.pad_type in name and args.batch in name and \
+        ((("color" not in name) and args.n_aug == 0) or (f"color-{args.n_aug}" in name and args.n_aug != 0))
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--split_path', dest='split_path', type=str, default="42/dataset3", required=False)
     parser.add_argument('--pad_type', dest='pad_type', type=str, required=True)
-    parser.add_argument('--has_color', dest='has_color', type=int, required=True)
+    parser.add_argument('--n_aug', dest='n_aug', type=float, required=True)
     parser.add_argument('--batch', dest='batch', type=str, required=True)
 
     args = parser.parse_args()
     group_paths = list(sorted([
-        x[0] for x in os.walk("checkpoints/") if (args.pad_type in x[0] and (("color" in x[0]) == bool(args.has_color)) and args.batch in x[0])
+        x[0] for x in os.walk("checkpoints/") if name_fits_criteria(x[0], args)
     ]))
     print(group_paths)
 
