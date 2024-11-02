@@ -125,10 +125,18 @@ def get_preprocessing(name):
             v2.CenterCrop(int(224 * intensity)),
             v2.Pad(math.ceil(224 * (1 - intensity)), fill=NORMALIZED_BLACK),
         ])
+    elif prepro_type == "inv_crop_pad":
+        return v2.Lambda(lambda x: outer_crop(x, intensity))
     elif prepro_type == "rot":
         return v2.Lambda(lambda x: F.rotate(x, intensity))
 
     raise KeyError("incorrect augmentation")
+
+def outer_crop(tensor, intensity):
+    border = int(224 * (1 - intensity) / 2)
+    tensor = tensor.permute((1, 2, 0))
+    tensor[border:224-border, border:224-border] =  torch.tensor(NORMALIZED_BLACK)
+    return tensor.permute((2, 0, 1))
 
 
 def get_gradcam(gradcam_name, model_path):
