@@ -134,9 +134,11 @@ def get_preprocessing(name):
 
 def outer_crop(tensor, intensity):
     border = int(224 * (1 - intensity) / 2)
-    tensor = tensor.permute((1, 2, 0))
+    ord1 = (0, 2, 3, 1) if len(tensor.shape) == 4 else (1, 2, 0)
+    ord2 = (0, 3, 1, 2) if len(tensor.shape) == 4 else (2, 0, 1)
+    tensor = tensor.permute(ord1)
     tensor[border:224-border, border:224-border] =  torch.tensor(NORMALIZED_BLACK)
-    return tensor.permute((2, 0, 1))
+    return tensor.permute(ord2)
 
 
 def get_gradcam(gradcam_name, model_path):
