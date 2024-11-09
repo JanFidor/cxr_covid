@@ -89,7 +89,7 @@ class BIMCVCOVIDDataset(CXRDataset):
     def __init__(self, fold, augments=None, random_state=30493, include_lateral=False, 
                  include_unknown_projections=False, include_ap_supine=False,
                  include_unknown_labels=False, initialize_h5=False, covid_labels='molecular',
-                 labels='chexpert', projection=None):
+                 labels='chexpert', projection=None, is_old=True):
         '''
         covid_labels (str): if 'molecular', the COVID label associated with each
           image will be based on molecular assay results (PCR or serology); all 
@@ -98,6 +98,8 @@ class BIMCVCOVIDDataset(CXRDataset):
         '''
 
         super().__init__(augments)
+
+        self.is_old = is_old
         
         self.labelstyle = labels.lower()
         if self.labelstyle == 'chexpert':
@@ -207,8 +209,9 @@ class BIMCVCOVIDDataset(CXRDataset):
         return "bimcv+"
 
     def _set_datapaths(self):
-        label_path = os.path.join(self.label_dir, 'derivatives/labels/labels_covid19_posi.tsv')
-        df_path = os.path.join(self.label_dir, 'bimcv+.csv')
+        ver = 'old' if self.is_old else 'new'
+        label_path = os.path.join(self.label_dir, f'{ver}/derivatives/labels/labels_covid19_posi.tsv')
+        df_path = os.path.join(self.label_dir, f'{ver}/bimcv+.csv')
         self.unknown_label_path = 'datasets/bimcv_covid_unknown_labels.txt'
         
         self.labeldf = pandas.read_csv(label_path, delimiter='\t')
@@ -249,7 +252,7 @@ class BIMCVCOVIDDataset(CXRDataset):
             # map the PadChest finding to the CheXpert/chestx-ray14 label
             if f == '':
                continue
-            converted = map_[f]
+            converted = map_.get(f, '')
             if converted == '':
                continue 
             elif isinstance(converted, str):

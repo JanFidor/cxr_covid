@@ -51,7 +51,7 @@ class BimcvDatasetABC(ABC):
     def process_image_by_index(self, idx):
         image_path = self.df.path.iloc[idx]
         imagename = image_path.split('/')[-1]
-        image = self._load_image(image_path)
+        image = self._load_image(image_path).astype(float)
         
         if imagename not in SKIP_WINDOWING:
             image = self._process_windowing(image, imagename, idx)
