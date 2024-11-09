@@ -90,8 +90,8 @@ def get_dataset(dataset_num, transforms, seed, split_name='42'):
         )
 
         split_dir = f"splits/{split_name}/dataset1"
-        ds.ds1.df = pd.read_csv(f"{split_dir}/chestxray-val.csv")
-        ds.ds1.meta_df = pd.read_csv(f"{split_dir}/chestxray-valmeta.csv")
+        ds.ds1.df = pd.read_csv(f"{split_dir}/chestxray-val.csv", index_col=0)
+        ds.ds1.meta_df = pd.read_csv(f"{split_dir}/chestxray-valmeta.csv", index_col=0)
         ds.ds2.df = pd.read_csv(f"{split_dir}/githubcovid-val.csv")
         
     elif dataset_num == 2:

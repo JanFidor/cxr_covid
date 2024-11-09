@@ -139,11 +139,15 @@ def train_dataset_1(
     preprocessing=None,
     split_name=None
 ):
-    train_augments = get_train_augmentations(augments_name)
+    augments = get_augmentations(augments_name)
     preprocessing = get_preprocessing(preprocessing)
+
+    train_transforms = v2.Compose([
+        preprocessing, augments
+    ])
     trainds = DomainConfoundedDataset(
-            ChestXray14Dataset(fold='train', augments=train_augments, labels='chestx-ray14', random_state=seed),
-            GitHubCOVIDDataset(fold='train', augments=train_augments, labels='chestx-ray14', random_state=seed)
+            ChestXray14Dataset(fold='train', augments=train_transforms, labels='chestx-ray14', random_state=seed),
+            GitHubCOVIDDataset(fold='train', augments=train_transforms, labels='chestx-ray14', random_state=seed)
             )
 
     valds = DomainConfoundedDataset(
@@ -153,14 +157,19 @@ def train_dataset_1(
     
     split_dir = f"splits/{split_name}/dataset1"
     if split_name:
-        trainds.ds1.df = pandas.read_csv(f"{split_dir}/chestxray-train.csv")
-        trainds.ds1.meta_df = pandas.read_csv(f"{split_dir}/chestxray-trainmeta.csv")
+        trainds.ds1.df = pandas.read_csv(f"{split_dir}/chestxray-train.csv", index_col=0)
+        trainds.ds1.meta_df = pandas.read_csv(f"{split_dir}/chestxray-trainmeta.csv", index_col=0)
 
-        valds.ds1.df = pandas.read_csv(f"{split_dir}/chestxray-val.csv")
-        valds.ds1.meta_df = pandas.read_csv(f"{split_dir}/chestxray-valmeta.csv")
+        valds.ds1.df = pandas.read_csv(f"{split_dir}/chestxray-val.csv", index_col=0)
+        valds.ds1.meta_df = pandas.read_csv(f"{split_dir}/chestxray-valmeta.csv", index_col=0)
 
-        trainds.ds2.df = pandas.read_csv(f"{split_dir}/padchest-train.csv")
-        valds.ds2.df = pandas.read_csv(f"{split_dir}/padchest-val.csv")
+        trainds.ds2.df = pandas.read_csv(f"{split_dir}/githubcovid-train.csv")
+        valds.ds2.df = pandas.read_csv(f"{split_dir}/githubcovid-val.csv")
+
+    trainds.len1 = len(trainds.ds1)
+    trainds.len2 = len(trainds.ds2)
+    valds.len1 = len(valds.ds1)
+    valds.len2 = len(valds.ds2)
 
     # generate log and checkpoint paths
     logpath = f'logs/{experiment_name}.dataset1.{model_name}.{seed}.log'
