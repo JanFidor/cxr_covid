@@ -193,11 +193,20 @@ def train_dataset_2(
     preprocessing=None,
     split_name=None
 ):
-    train_augments = get_train_augmentations(augments_name)
+    augments = get_augmentations(augments_name)
     preprocessing = get_preprocessing(preprocessing)
+    # Unlike the other datasets, there is overlap in patients between the
+    # BIMCV-COVID-19+ and BIMCV-COVID-19- datasets, so we have to perform the 
+    # train/val/test split *after* creating the datasets.
+
+    # Start by getting the *full* dataset - not split!
+
+    train_transforms = v2.Compose([
+        preprocessing, augments
+    ])
     trainds = DomainConfoundedDataset(
-            PadChestDataset(fold='train', augments=train_augments, labels='chestx-ray14', random_state=seed),
-            BIMCVCOVIDDataset(fold='train', augments=train_augments, labels='chestx-ray14', random_state=seed)
+            PadChestDataset(fold='train', augments=train_transforms, labels='chestx-ray14', random_state=seed),
+            BIMCVCOVIDDataset(fold='train', augments=train_transforms, labels='chestx-ray14', random_state=seed)
             )
     valds = DomainConfoundedDataset(
             PadChestDataset(fold='val', labels='chestx-ray14', augments=preprocessing, random_state=seed),
@@ -211,6 +220,11 @@ def train_dataset_2(
 
         trainds.ds2.df = pandas.read_csv(f"{split_dir}/bimcv-train.csv")
         valds.ds2.df = pandas.read_csv(f"{split_dir}/bimcv-val.csv")
+
+    trainds.len1 = len(trainds.ds1)
+    trainds.len2 = len(trainds.ds2)
+    valds.len1 = len(valds.ds1)
+    valds.len2 = len(valds.ds2)
 
     # generate log and checkpoint paths
     logpath = f'logs/{experiment_name}.dataset2.{model_name}.{seed}.log'
