@@ -94,29 +94,101 @@ def create_heatmap(preprocessing_names, group_paths, dataset, save_path):
     sn.reset_defaults()
     plt.clf()
 
-def auroc_augments(split_path, group_paths, stage):
+
+def get_dataset_1(
+    split_dir
+):
     trainds = DomainConfoundedDataset(
-            BIMCVNegativeDataset(fold='all', augments=None, labels='chestx-ray14'),
-            BIMCVCOVIDDataset(fold='all', augments=None, labels='chestx-ray14')
-            )
+        ChestXray14Dataset(fold='train', augments=None, labels='chestx-ray14'),
+        GitHubCOVIDDataset(fold='train', augments=None, labels='chestx-ray14')
+    )
+
     valds = DomainConfoundedDataset(
-            BIMCVNegativeDataset(fold='all', labels='chestx-ray14', augments=None),
-            BIMCVCOVIDDataset(fold='all', labels='chestx-ray14', augments=None)
-            )
-    
+        ChestXray14Dataset(fold='val', labels='chestx-ray14'),
+        GitHubCOVIDDataset(fold='val', labels='chestx-ray14')
+    )
+    trainds.ds1.df = pd.read_csv(f"{split_dir}/chestxray-train.csv", index_col=0)
+    trainds.ds1.meta_df = pd.read_csv(f"{split_dir}/chestxray-trainmeta.csv", index_col=0)
+
+    valds.ds1.df = pd.read_csv(f"{split_dir}/chestxray-val.csv", index_col=0)
+    valds.ds1.meta_df = pd.read_csv(f"{split_dir}/chestxray-valmeta.csv", index_col=0)
+
+    trainds.ds2.df = pd.read_csv(f"{split_dir}/githubcovid-train.csv", index_col="filename")
+    valds.ds2.df = pd.read_csv(f"{split_dir}/githubcovid-val.csv", index_col="filename")
+
+    trainds.len1 = len(trainds.ds1)
+    trainds.len2 = len(trainds.ds2)
+    valds.len1 = len(valds.ds1)
+    valds.len2 = len(valds.ds2)
+
+    return trainds, valds
+
+def get_dataset_2(
+    split_path
+):
+    trainds = DomainConfoundedDataset(
+        PadChestDataset(fold='train', augments=None, labels='chestx-ray14'),
+        BIMCVCOVIDDataset(fold='train', augments=None, labels='chestx-ray14')
+    )
+    valds = DomainConfoundedDataset(
+        PadChestDataset(fold='val', labels='chestx-ray14', augments=None),
+        BIMCVCOVIDDataset(fold='val', labels='chestx-ray14', augments=None)
+    )
+    trainds.ds1.df = pd.read_csv(f"{split_path}/padchest-train.csv")
+    valds.ds1.df = pd.read_csv(f"{split_path}/padchest-val.csv")
+
+    trainds.ds2.df = pd.read_csv(f"{split_path}/bimcv-train.csv")
+    valds.ds2.df = pd.read_csv(f"{split_path}/bimcv-val.csv")
+
+    trainds.len1 = len(trainds.ds1)
+    trainds.len2 = len(trainds.ds2)
+    valds.len1 = len(valds.ds1)
+    valds.len2 = len(valds.ds2)
+
+    return trainds, valds
+
+
+def get_dataset_3(
+    split_path
+):
+    trainds = DomainConfoundedDataset(
+        BIMCVNegativeDataset(fold='all', augments=None, labels='chestx-ray14'),
+        BIMCVCOVIDDataset(fold='all', augments=None, labels='chestx-ray14')
+    )
+    valds = DomainConfoundedDataset(
+        BIMCVNegativeDataset(fold='all', labels='chestx-ray14', augments=None),
+        BIMCVCOVIDDataset(fold='all', labels='chestx-ray14', augments=None)
+    )
+    trainds.ds1.df = pd.read_csv(f"{split_path}/negative-train.csv")
+    valds.ds1.df = pd.read_csv(f"{split_path}/negative-val.csv")
+
+    trainds.ds2.df = pd.read_csv(f"{split_path}/positive-train.csv")
+    valds.ds2.df = pd.read_csv(f"{split_path}/positive-val.csv")
+
+    trainds.len1 = len(trainds.ds1)
+    trainds.len2 = len(trainds.ds2)
+    valds.len1 = len(valds.ds1)
+    valds.len2 = len(valds.ds2)
+
+    return trainds, valds
+
+def auroc_augments(split_path, group_paths, stage):
+    dataset = split_path[-1]
     split_dir = f"splits/{split_path}"
-
-    trainds.ds1.df = pd.read_csv(f"{split_dir}/negative-train.csv")
-    trainds.len1 = len(trainds.ds1.df)
-
-    valds.ds1.df = pd.read_csv(f"{split_dir}/negative-val.csv")
-    valds.len1 = len(valds.ds1.df)
-
-    trainds.ds2.df = pd.read_csv(f"{split_dir}/positive-train.csv")
-    trainds.len2 = len(trainds.ds2.df)
-
-    valds.ds2.df = pd.read_csv(f"{split_dir}/positive-val.csv")
-    valds.len2 = len(valds.ds2.df)
+    if dataset == "1":
+        trainds, valds = get_dataset_1(split_dir)
+    elif dataset == "2":
+        trainds, valds = get_dataset_2(split_dir)
+    else:
+        trainds, valds = get_dataset_3(split_dir)
+    trainds = DomainConfoundedDataset(
+        BIMCVNegativeDataset(fold='all', augments=None, labels='chestx-ray14'),
+        BIMCVCOVIDDataset(fold='all', augments=None, labels='chestx-ray14')
+    )
+    valds = DomainConfoundedDataset(
+        BIMCVNegativeDataset(fold='all', labels='chestx-ray14', augments=None),
+        BIMCVCOVIDDataset(fold='all', labels='chestx-ray14', augments=None)
+    )
 
     root_dir = "examples/augmentation_auroc/"
 
