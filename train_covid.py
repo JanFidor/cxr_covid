@@ -163,8 +163,8 @@ def train_dataset_1(
         valds.ds1.df = pandas.read_csv(f"{split_dir}/chestxray-val.csv", index_col=0)
         valds.ds1.meta_df = pandas.read_csv(f"{split_dir}/chestxray-valmeta.csv", index_col=0)
 
-        trainds.ds2.df = pandas.read_csv(f"{split_dir}/githubcovid-train.csv")
-        valds.ds2.df = pandas.read_csv(f"{split_dir}/githubcovid-val.csv")
+        trainds.ds2.df = pandas.read_csv(f"{split_dir}/githubcovid-train.csv", index_col="filename")
+        valds.ds2.df = pandas.read_csv(f"{split_dir}/githubcovid-val.csv", index_col="filename")
 
     trainds.len1 = len(trainds.ds1)
     trainds.len2 = len(trainds.ds2)
@@ -340,15 +340,15 @@ def main():
     parser = argparse.ArgumentParser(description='Training script for COVID-19 '
             'classifiers. Make sure that datasets have been set up before '
             'running this script. See the README file for more information.')
-    parser.add_argument('--dataset', dest='dataset', type=int, default=3, required=False,
+    parser.add_argument('--dataset', dest='dataset', type=int, default=1, required=False,
                         help='The dataset number on which to train. Choose "1" or "2" or "3".')
     parser.add_argument('--seed', dest='seed', type=int, default=42, required=False,
                         help='The random seed used to generate train/val/test splits')
     parser.add_argument('--network', dest='network', type=str, default='densenet121-pretrain', required=False,
                         help='The network type. Choose "densenet121-random", "densenet121-pretrain", "logistic", or "alexnet".')
-    parser.add_argument('--split', dest='split', type=str, default=None, required=False,
+    parser.add_argument('--split', dest='split', type=str, default="42", required=False,
                         help='Split name')
-    parser.add_argument('--batch', dest='batch', type=int, default=256, required=False,
+    parser.add_argument('--batch', dest='batch', type=int, default=8, required=False,
                         help='Experiment name')   
     parser.add_argument('--device-index', dest='deviceidx', type=int, default=None, required=False,
                         help='The index of the GPU device to use. If None, use the default GPU.')
