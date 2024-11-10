@@ -49,7 +49,7 @@ def model_augment_auroc(model, augments, dataset):
     auroc = AUROC('binary')
 
     for x, y, _, _ in dataloader:
-        x = augments(x).cuda()
+        x = augments(x).float().cuda()
         y = y.cuda().float()
         y_hat = model(x)
 
