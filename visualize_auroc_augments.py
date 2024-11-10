@@ -137,8 +137,8 @@ def get_dataset_2(
     trainds.ds1.df = pd.read_csv(f"{split_path}/padchest-train.csv")
     valds.ds1.df = pd.read_csv(f"{split_path}/padchest-val.csv")
 
-    trainds.ds2.df = pd.read_csv(f"{split_path}/bimcv-train.csv")
-    valds.ds2.df = pd.read_csv(f"{split_path}/bimcv-val.csv")
+    trainds.ds2.df = pd.read_csv(f"{split_path}/positive-train.csv")
+    valds.ds2.df = pd.read_csv(f"{split_path}/positive-val.csv")
 
     trainds.len1 = len(trainds.ds1)
     trainds.len2 = len(trainds.ds2)
@@ -197,7 +197,7 @@ def auroc_augments(split_path, group_paths, stage):
     preprocess_lst = [path.split("/")[3] for path in group_paths]
 
     save_path = f"{root_dir}/{batch}/{augments}/{prepro}/{stage}.png"
-    (Path(root_dir) / batch / augments / prepro).mkdir(parents=True, exist_ok=True)
+    (Path(root_dir) / dataset / batch / augments / prepro).mkdir(parents=True, exist_ok=True)
 
     dataset = trainds if stage == 'train' else valds
     create_heatmap(preprocess_lst, group_paths, dataset, save_path)

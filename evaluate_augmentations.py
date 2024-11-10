@@ -158,7 +158,7 @@ def main():
     results[config_key] = metric_lst
     
     # Save results
-    output_path = Path(args.pad_type + "_" + args.output_path)
+    output_path = Path("jsons", str(args.dataset), str(args.n_aug), args.pad_type + "_" + args.output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
     with open(output_path, 'w') as f:
