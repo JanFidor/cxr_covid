@@ -95,7 +95,7 @@ class AlexNet(Module):
 
 class CXRClassifier(object):
     'A classifier for various pathologies found in chest radiographs'
-    def __init__(self, n_logged=0, seed=42):
+    def __init__(self, n_logged=5, seed=42):
         '''
         Create a classifier for chest radiograph pathology.
         '''
@@ -217,7 +217,7 @@ class CXRClassifier(object):
         # Define the optimizer. Use SGD with momentum and weight decay.
         self.optimizer = self._get_optimizer(lr, self.weight_decay)
         scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer,
-                5, # epochs between stepping lr
+                10, # epochs between stepping lr
                 gamma=0.1)
         # Begin training. Iterate over each epoch to (i) optimize network and
         # (ii) calculate validation loss.
