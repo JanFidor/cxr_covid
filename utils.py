@@ -7,6 +7,7 @@ import math
 
 from models.cxrclassifier import AlexNet, CXRClassifier
 from pytorch_grad_cam import GradCAM, EigenCAM, GradCAMPlusPlus, EigenGradCAM
+from covid_transforms import AUGMENTATION_SETUP
 
 
 MEAN = [0.485, 0.456, 0.406]
@@ -80,6 +81,8 @@ def denormalize(x):
 
 #color-0.5|rot-10|flip-0.5
 def get_augmentations(name):
+    if name in AUGMENTATION_SETUP:
+        return AUGMENTATION_SETUP[name]
     if name == 'none': return v2.Identity()
 
     all_augments = name.split("|")

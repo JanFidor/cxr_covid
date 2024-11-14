@@ -40,7 +40,7 @@ class CXRDataset(torch.utils.data.Dataset, ABC):
         tensor = torch.load(tensor_path, weights_only=True)
         if self.augments: 
             tensor = self.augments(tensor)
-        return tensor
+        return tensor.float()
 
     def _get_label(self, idx):
         label = numpy.zeros(len(self.labels), dtype=int)
