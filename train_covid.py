@@ -116,7 +116,6 @@ def train_dataset_3(
     augments_name=None,
     split_name=None,
     group_name=None,
-    test_preprocessing=None,
 ):
     trainds = load_dataset_3(seed, is_train=True, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
     valds = load_dataset_3(seed, is_train=False, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
@@ -143,7 +142,7 @@ def train_dataset_3(
         freeze_features=freeze_features,
     )
 
-    evaluate_dataset_1(seed, classifier.model, test_preprocessing, split_name, epoch=40)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, epoch=40)
 
     wandb.save(f"{checkpointpath}*", base_path=checkpointdir)
 
@@ -155,9 +154,17 @@ def evaluate_dataset_1(
     epoch=None
 ):  
     model.eval()
-    dataset = load_dataset_1(seed, is_train=True, preprocessing=preprocessing, split_name=split_name)
-    dataloader = torch.utils.data.DataLoader(
-        dataset,
+    ds1 = load_dataset_1(seed, is_train=True, preprocessing=preprocessing, split_name=split_name)
+    dl1 = torch.utils.data.DataLoader(
+        ds1,
+        batch_size=MAX_BATCH,
+        shuffle=False,
+        num_workers=1
+    )
+
+    ds2 = load_dataset_1(seed, is_train=False, preprocessing=preprocessing, split_name=split_name)
+    dl2 = torch.utils.data.DataLoader(
+        ds2,
         batch_size=MAX_BATCH,
         shuffle=False,
         num_workers=1
@@ -167,7 +174,7 @@ def evaluate_dataset_1(
     auroc = AUROC(task='binary').cuda()
     
     with torch.no_grad():
-        for batch in tqdm(dataloader, leave=False):
+        for batch in tqdm(dl1, leave=False):
             inputs, labels, _, _ = batch
             inputs = inputs.cuda()
             labels = labels.cuda()
@@ -179,7 +186,18 @@ def evaluate_dataset_1(
             
             # Update metrics
             auroc.update(covid_outputs, covid_labels.int())
-            break
+        for batch in tqdm(dl2, leave=False):
+            inputs, labels, _, _ = batch
+            inputs = inputs.cuda()
+            labels = labels.cuda()
+            outputs = model(inputs)
+            
+            # Only keep COVID predictions (last column)
+            covid_outputs = outputs[:, -1]
+            covid_labels = labels[:, -1]
+            
+            # Update metrics
+            auroc.update(covid_outputs, covid_labels.int())
     _auroc = float(auroc.compute().cpu())
     log_dict = {f"auroc/test_ood": _auroc}
     if epoch is not None:
@@ -206,8 +224,6 @@ def main():
                         help='Augment strength')
     parser.add_argument('--preprocessing', dest='preprocessing', type=str, default="none", required=False,
                         help='Augment strength')
-    parser.add_argument('--test_preprocessing', dest='test_preprocessing', type=str, default="none", required=False,
-                        help='Test preprocessing')
     parser.add_argument('--experiment', dest='experiment', type=str, default='experiment_name', required=False,
                         help='Experiment name')
     parser.add_argument('--group', dest='group', type=str, default=None, required=False,
@@ -258,7 +274,6 @@ def main():
             freeze_features=(args.network.lower() == 'logistic'),
             augments_name=args.augments,
             preprocessing=args.preprocessing,
-            test_preprocessing=args.test_preprocessing,
             split_name=args.split,
             group_name=args.group,
             batch_size=args.batch,
