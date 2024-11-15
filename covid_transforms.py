@@ -4,8 +4,7 @@ from torchvision.models.densenet import DenseNet
 import torch
 import numpy as np
 import math
-
-CROP_PAD_INTENSITY = 0.25
+from  monai.transforms import RandSpatialCrop, SpatialPad, RandAffined
 
 MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225]
@@ -25,17 +24,22 @@ def get_transforms(name, abstract_intensity = None):
             v2.Normalize(MEAN, STD),
         ])
     if name == 'affine':
-        intensity = 0
-        if abstract_intensity == 'weak': intensity = 0.05
-        if abstract_intensity == 'medium': intensity = 0.1
-        if abstract_intensity == 'strong': intensity = 0.15
-        return v2.RandomAffine(degrees=10, translate=(intensity, intensity), scale=(1-intensity, 1+intensity), fill=NORMALIZED_BLACK)
+        rot, trans, scale = 0, 0, 1
+        if abstract_intensity == 'weak': 
+            rot, trans, scale = 0, 0.05, 0
+        if abstract_intensity == 'strong':
+            rot, trans, scale = 5, 0.1, 0.1
+        return v2.RandomAffine(degrees=rot, translate=(trans, trans), scale=(1-scale, 1+scale), fill=NORMALIZED_BLACK)
     if name == 'crop':
         intensity = 0
-        if abstract_intensity == 'weak': intensity = 0.05
-        if abstract_intensity == 'medium': intensity = 0.1
-        if abstract_intensity == 'strong': intensity = 0.15
-        return random_crop_by_translation(intensity, CROP_PAD_INTENSITY)
+        if abstract_intensity == 'weak': intensity = 0.15
+        if abstract_intensity == 'strong': intensity = 0.25
+        return v2.Compose([
+            v2.Lambda(lambda x: denormalize(x)),
+            RandSpatialCrop(roi_size=224*(1 - intensity), max_roi_size=224, random_center=False,random_size=True),
+            SpatialPad(spatial_size=(224, 224), mode="constant", constant_values=0),
+            v2.Normalize(MEAN, STD),
+        ])
     if name == 'flip':
         return v2.RandomHorizontalFlip(p=0.5)
     
@@ -80,6 +84,17 @@ def color_visualize(brightness, saturation):
         v2.Lambda(lambda x: F.adjust_contrast(x, saturation)),
     ])
 
+def translate_visualize(translate):
+    return v2.Compose([
+        v2.Lambda(lambda x: F.affine(x, 0, (translate * 224, translate * 224), 1, 0, 0, fill=0)),
+    ])
+
+def scale_visualize(zoom):
+    return v2.Compose([
+        RandAffined(prob=1.0, scale_range=(0.5, 0.5)),  # Scale randomly
+        SpatialPad(spatial_size=(224, 224))  # Ensure fixed size
+    ])
+
 def random_compose(augmentations, p=1):
     return v2.Compose([
         v2.RandomApply([auh], p=p) for auh in augmentations
@@ -87,45 +102,28 @@ def random_compose(augmentations, p=1):
 
 AUGMENTATION_SETUP = {
     "no_augments": v2.Identity(),
-    "color-weak": get_transforms('color', 'weak'),
-    "color-strong": get_transforms('color', 'strong'),
-    "geom-weak": get_transforms('affine', 'weak'),
-    "geom-strong": get_transforms('affine', 'strong'),
-    "combined-weak-rare": random_compose([
+    "baseline-augments": v2.Compose([
+        get_transforms('affine', 'weak'),
+        get_transforms('color', 'medium'),
         get_transforms('flip'),
+    ]),
+    "random_crop-weak": v2.Compose([
         get_transforms('crop', 'weak'),
         get_transforms('affine', 'weak'),
-        get_transforms('color', 'weak'),
-    ], 0.5),
-    "combined-medium-rare": random_compose([
-        get_transforms('flip'),
-        get_transforms('crop', 'medium'),
-        get_transforms('affine', 'medium'),
         get_transforms('color', 'medium'),
-    ], 0.5),
-    "combined-strong-rare": random_compose([
         get_transforms('flip'),
+    ]),
+    "random_crop-strong": v2.Compose([
         get_transforms('crop', 'strong'),
-        get_transforms('affine', 'strong'),
-        get_transforms('color', 'strong'),
-    ], 0.5),
-    "combined-weak-always": random_compose([
-        get_transforms('flip'),
-        get_transforms('crop', 'weak'),
         get_transforms('affine', 'weak'),
-        get_transforms('color', 'weak'),
-    ], 1),
-    "combined-medium-always": random_compose([
-        get_transforms('flip'),
-        get_transforms('crop', 'medium'),
-        get_transforms('affine', 'medium'),
         get_transforms('color', 'medium'),
-    ], 1),
-    "combined-strong-always": random_compose([
         get_transforms('flip'),
+    ]),
+    "random_crop-strong-affine": random_compose([
         get_transforms('crop', 'strong'),
         get_transforms('affine', 'strong'),
-        get_transforms('color', 'strong'),
+        get_transforms('color', 'medium'),
+        get_transforms('flip'),
     ], 1),
 }
 
