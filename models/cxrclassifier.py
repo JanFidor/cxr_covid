@@ -95,7 +95,7 @@ class AlexNet(Module):
 
 class CXRClassifier(object):
     'A classifier for various pathologies found in chest radiographs'
-    def __init__(self, n_logged=5, seed=42):
+    def __init__(self, n_logged=0, seed=42):
         '''
         Create a classifier for chest radiograph pathology.
         '''
