@@ -126,7 +126,13 @@ def get_preprocessing(name):
     elif prepro_type == "crop_pad":
         return v2.Compose([
             v2.CenterCrop(int(224 * intensity)),
-            v2.Pad(math.ceil(224 * (1 - intensity)), fill=NORMALIZED_BLACK),
+            v2.Pad((
+                math.ceil(224 * (1 - intensity) / 2),
+                math.ceil(224 * (1 - intensity) / 2),
+                math.ceil(224 * (1 - intensity) / 2),
+                math.ceil(224 * (1 - intensity) / 2)
+            ), fill=NORMALIZED_BLACK),
+            v2.Resize(224)
         ])
     elif prepro_type == "inv_crop_pad":
         return v2.Lambda(lambda x: outer_crop(x, intensity))
