@@ -24,6 +24,9 @@ from pytorch_grad_cam import GradCAM, EigenCAM, GradCAMPlusPlus, EigenGradCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 import random
+from torchmetrics import ConfusionMatrix
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 mean = [0.485, 0.456, 0.406]
 std = [0.229, 0.224, 0.225]
@@ -290,9 +293,11 @@ class CXRClassifier(object):
 
     def _train_epoch(self, train_dataloader, epoch):
         auroc = AUROC('binary').cpu()
+        confmat = ConfusionMatrix(task="binary", num_classes=2).cpu()
         self.model.train(True)
         loss = 0
         logged_per_class = {}
+        
         for i, batch in enumerate(tqdm(train_dataloader, leave=False)):
             inputs, labels, _, _ = batch
             # batch size may differ from batch_size for the last  
@@ -310,7 +315,10 @@ class CXRClassifier(object):
             batch_loss = self.lossfunc(outputs, labels)
 
             covid_labels = labels.to(torch.int)[:,-1]
+            predictions = (outputs[:,-1] > 0).int()  # Convert logits to predictions
             auroc.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
+            confmat.update(predictions.detach().cpu(), covid_labels.detach().cpu())
+            
             # update the network's weights
             
             batch_loss.backward()
@@ -329,10 +337,13 @@ class CXRClassifier(object):
             self.log_images("train", inputs, covid_labels, logged_per_class, epoch)
         if epoch != -1:
             log_metrics("train", epoch, loss / len(train_dataloader), auroc.compute().item())
+            log_confusion_matrix("train", epoch, confmat.compute().numpy())
+            
         return loss
 
     def _val_epoch(self, val_dataloader, epoch):
         auroc = AUROC('binary').cpu()
+        confmat = ConfusionMatrix(task="binary", num_classes=2).cpu()
         self.model.train(False)
         
         loss = 0
@@ -350,7 +361,9 @@ class CXRClassifier(object):
             outputs = self.model(inputs)
 
             covid_labels = labels.to(torch.int)[:,-1]
+            predictions = (outputs[:,-1] > 0).int()  # Convert logits to predictions
             auroc.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
+            confmat.update(predictions.detach().cpu(), covid_labels.detach().cpu())
             # Calculate the loss
             batch_loss = self.lossfunc(outputs, labels)
 
@@ -361,6 +374,7 @@ class CXRClassifier(object):
             self.log_images("val", inputs, covid_labels, logged_per_class, epoch)
                 
         log_metrics("val", epoch, loss / len(val_dataloader), auroc.compute().item())
+        log_confusion_matrix("val", epoch, confmat.compute().numpy())
         return loss, auroc.compute().item()
 
     def checkpoint(self, suffix=None):
@@ -445,4 +459,17 @@ class CXRClassifier(object):
                     output[batch_size*ibatch + isample, ilabel] = \
                         probs[isample, ilabel]
         return output
+
+def log_confusion_matrix(stage, epoch, conf_matrix):
+    # Create figure and plot confusion matrix
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues',
+                xticklabels=CLASS_NAMES, yticklabels=CLASS_NAMES)
+    plt.title(f'{stage} Confusion Matrix')
+    plt.ylabel('True Label')
+    plt.xlabel('Predicted Label')
+    
+    # Log to wandb
+    wandb.log({f"confusion_matrix/{stage}": wandb.Image(plt), "epoch": epoch})
+    plt.close()
 
