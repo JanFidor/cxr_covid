@@ -116,7 +116,7 @@ def ds3_get_unique_patient_ids(df1, df2, neg_overlap_map, pos_overlap_map):
 
 def load_dataset_1(
     seed,
-    is_train,
+    fold,
     augments_name='none',
     preprocessing='none',
     split_name=None
@@ -124,21 +124,25 @@ def load_dataset_1(
     augments = get_augmentations(augments_name)
     preprocessing = get_preprocessing(preprocessing)
 
-    train_transforms = v2.Compose([
+    combined_transforms = v2.Compose([
         preprocessing, augments
-    ]) if is_train else v2.Compose([preprocessing])
+    ])
 
-    fold = 'train' if is_train else 'val'
+    train_transforms = v2.Identity()
+    if fold == 'train':
+        train_transforms = combined_transforms
+    elif fold == 'val':
+        train_transforms = preprocessing
+
     ds = DomainConfoundedDataset(
-        ChestXray14Dataset(fold=fold, augments=train_transforms, labels='chestx-ray14', random_state=seed),
-        GitHubCOVIDDataset(fold=fold, augments=train_transforms, labels='chestx-ray14', random_state=seed)
+        ChestXray14Dataset(fold='train', augments=train_transforms, labels='chestx-ray14', random_state=seed),
+        GitHubCOVIDDataset(fold='train', augments=train_transforms, labels='chestx-ray14', random_state=seed)
         )
     
     split_dir = f"splits/{split_name}/dataset1"
-    if split_name:
-        ds.ds1.df = pd.read_csv(f"{split_dir}/chestxray-{fold}.csv", index_col=0)
-        ds.ds1.meta_df = pd.read_csv(f"{split_dir}/chestxray-{fold}meta.csv", index_col=0)
-        ds.ds2.df = pd.read_csv(f"{split_dir}/githubcovid-{fold}.csv", index_col="filename")
+    ds.ds1.df = pd.read_csv(f"{split_dir}/chestxray-{fold}.csv", index_col=0)
+    ds.ds1.meta_df = pd.read_csv(f"{split_dir}/chestxray-{fold}meta.csv", index_col=0)
+    ds.ds2.df = pd.read_csv(f"{split_dir}/githubcovid-{fold}.csv", index_col="filename")
 
     ds.len1 = len(ds.ds1)
     ds.len2 = len(ds.ds2)
