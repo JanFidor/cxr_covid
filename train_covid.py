@@ -116,6 +116,9 @@ def train_dataset_3(
     augments_name=None,
     split_name=None,
     group_name=None,
+    lr=0.01,
+    weight_decay=1e-4,
+    max_epochs=30,
 ):
     trainds = load_dataset_3(seed, is_train=True, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
     valds = load_dataset_3(seed, is_train=False, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
@@ -131,10 +134,10 @@ def train_dataset_3(
     classifier.train(
         trainds,
         valds,
-        max_epochs=40,
-        lr=0.01, 
+        max_epochs=max_epochs,
+        lr=lr, 
         batch_size=batch_size,
-        weight_decay=1e-4,
+        weight_decay=weight_decay,
         logpath=logpath,
         checkpoint_path=checkpointpath,
         verbose=True,
@@ -142,7 +145,7 @@ def train_dataset_3(
         freeze_features=freeze_features,
     )
 
-    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, epoch=40)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, epoch=max_epochs)
 
     wandb.save(f"{checkpointpath}*", base_path=checkpointdir)
 
@@ -174,18 +177,18 @@ def evaluate_dataset_1(
     auroc = AUROC(task='binary').cuda()
     
     with torch.no_grad():
-        for batch in tqdm(dl1, leave=False):
-            inputs, labels, _, _ = batch
-            inputs = inputs.cuda()
-            labels = labels.cuda()
-            outputs = model(inputs)
+        # for batch in tqdm(dl1, leave=False):
+        #     inputs, labels, _, _ = batch
+        #     inputs = inputs.cuda()
+        #     labels = labels.cuda()
+        #     outputs = model(inputs)
             
-            # Only keep COVID predictions (last column)
-            covid_outputs = outputs[:, -1]
-            covid_labels = labels[:, -1]
+        #     # Only keep COVID predictions (last column)
+        #     covid_outputs = outputs[:, -1]
+        #     covid_labels = labels[:, -1]
             
-            # Update metrics
-            auroc.update(covid_outputs, covid_labels.int())
+        #     # Update metrics
+        #     auroc.update(covid_outputs, covid_labels.int())
         for batch in tqdm(dl2, leave=False):
             inputs, labels, _, _ = batch
             inputs = inputs.cuda()
@@ -228,6 +231,11 @@ def main():
                         help='Experiment name')
     parser.add_argument('--group', dest='group', type=str, default=None, required=False,
                         help='Experiment name')
+    parser.add_argument('--lr', dest='lr', type=float, default=0.01, required=False,
+                        help='Learning rate')
+    parser.add_argument('--weight-decay', dest='weight_decay', type=float, default=1e-4, required=False,
+                        help='Weight decay')
+    parser.add_argument('--max-epochs', dest='max_epochs', type=int, default=30, required=False)
     args = parser.parse_args()
 
     for dirname in ['checkpoints', 'logs']:
@@ -277,6 +285,9 @@ def main():
             split_name=args.split,
             group_name=args.group,
             batch_size=args.batch,
+            lr=args.lr,
+            weight_decay=args.weight_decay,
+            max_epochs=args.max_epochs,
         )
 
 if __name__ == "__main__":
