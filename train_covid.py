@@ -29,12 +29,14 @@ from datasets import (
     BIMCVNegativeDataset, 
     DomainConfoundedDataset
 )
+from models.cxrclassifier import log_confusion_matrix
 from load_data import load_dataset_1, load_dataset_2, load_dataset_3
 from logger import initialize_wandb
 from utils import get_augmentations, get_preprocessing
 import wandb
 from torchmetrics import AUROC
 from tqdm import tqdm
+from torchmetrics.classification.confusion_matrix import ConfusionMatrix
 
 MAX_BATCH=16
 
@@ -47,8 +49,8 @@ def train_dataset_1(
     preprocessing=None,
     split_name=None
 ):
-    trainds = load_dataset_1(seed, is_train=True, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
-    valds = load_dataset_1(seed, is_train=False, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
+    trainds = load_dataset_1(seed, fold='train', augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
+    valds = load_dataset_1(seed, fold='val', augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
 
     # generate log and checkpoint paths
     logpath = f'logs/{experiment_name}.dataset1.{model_name}.{seed}.log'
@@ -157,39 +159,14 @@ def evaluate_dataset_1(
     epoch=None
 ):  
     model.eval()
-    ds1 = load_dataset_1(seed, is_train=True, preprocessing=preprocessing, split_name=split_name)
-    dl1 = torch.utils.data.DataLoader(
-        ds1,
-        batch_size=MAX_BATCH,
-        shuffle=False,
-        num_workers=1
-    )
-
-    ds2 = load_dataset_1(seed, is_train=False, preprocessing=preprocessing, split_name=split_name)
-    dl2 = torch.utils.data.DataLoader(
-        ds2,
-        batch_size=MAX_BATCH,
-        shuffle=False,
-        num_workers=1
-    )
+    ds = load_dataset_1(seed, fold='test', preprocessing=preprocessing, split_name=split_name)
     
     # Initialize metrics
     auroc = AUROC(task='binary').cuda()
+    confmat = ConfusionMatrix(task="binary", num_classes=2).cuda()
     
     with torch.no_grad():
-        # for batch in tqdm(dl1, leave=False):
-        #     inputs, labels, _, _ = batch
-        #     inputs = inputs.cuda()
-        #     labels = labels.cuda()
-        #     outputs = model(inputs)
-            
-        #     # Only keep COVID predictions (last column)
-        #     covid_outputs = outputs[:, -1]
-        #     covid_labels = labels[:, -1]
-            
-        #     # Update metrics
-        #     auroc.update(covid_outputs, covid_labels.int())
-        for batch in tqdm(dl2, leave=False):
+        for batch in tqdm(ds, leave=False):
             inputs, labels, _, _ = batch
             inputs = inputs.cuda()
             labels = labels.cuda()
@@ -201,11 +178,17 @@ def evaluate_dataset_1(
             
             # Update metrics
             auroc.update(covid_outputs, covid_labels.int())
+            predictions = (covid_outputs > 0).int()  # Convert logits to predictions
+            confmat.update(predictions, covid_labels.int())
+            
     _auroc = float(auroc.compute().cpu())
     log_dict = {f"auroc/test_ood": _auroc}
     if epoch is not None:
         log_dict[f"epoch"] = epoch
     wandb.log(log_dict)
+    
+    # Log confusion matrix
+    log_confusion_matrix("test_ood", epoch, confmat.compute().cpu().numpy())
 
 def main():
     parser = argparse.ArgumentParser(description='Training script for COVID-19 '
