@@ -160,13 +160,19 @@ def evaluate_dataset_1(
 ):  
     model.eval()
     ds = load_dataset_1(seed, fold='test', preprocessing=preprocessing, split_name=split_name)
+    dl = torch.utils.data.DataLoader(
+        ds,
+        batch_size=MAX_BATCH,
+        shuffle=False,
+        num_workers=1
+    )
     
     # Initialize metrics
     auroc = AUROC(task='binary').cuda()
     confmat = ConfusionMatrix(task="binary", num_classes=2).cuda()
     
     with torch.no_grad():
-        for batch in tqdm(ds, leave=False):
+        for batch in tqdm(dl, leave=False):
             inputs, labels, _, _ = batch
             inputs = inputs.cuda()
             labels = labels.cuda()
@@ -194,7 +200,7 @@ def main():
     parser = argparse.ArgumentParser(description='Training script for COVID-19 '
             'classifiers. Make sure that datasets have been set up before '
             'running this script. See the README file for more information.')
-    parser.add_argument('--dataset', dest='dataset', type=int, default=1, required=False,
+    parser.add_argument('--dataset', dest='dataset', type=int, default=3, required=False,
                         help='The dataset number on which to train. Choose "1" or "2" or "3".')
     parser.add_argument('--seed', dest='seed', type=int, default=42, required=False,
                         help='The random seed used to generate train/val/test splits')
@@ -218,7 +224,7 @@ def main():
                         help='Learning rate')
     parser.add_argument('--weight-decay', dest='weight_decay', type=float, default=1e-4, required=False,
                         help='Weight decay')
-    parser.add_argument('--max-epochs', dest='max_epochs', type=int, default=30, required=False)
+    parser.add_argument('--max-epochs', dest='max_epochs', type=int, default=1, required=False)
     args = parser.parse_args()
 
     for dirname in ['checkpoints', 'logs']:

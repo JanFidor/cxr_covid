@@ -470,5 +470,6 @@ def log_confusion_matrix(stage, epoch, conf_matrix):
     
     # Log to wandb
     wandb.log({f"confusion_matrix/{stage}": wandb.Image(plt), "epoch": epoch})
+    wandb.save()
     plt.close()
 
