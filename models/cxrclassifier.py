@@ -219,9 +219,9 @@ class CXRClassifier(object):
 
         # Define the optimizer. Use SGD with momentum and weight decay.
         self.optimizer = self._get_optimizer(lr, self.weight_decay)
-        scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer,
-                10, # epochs between stepping lr
-                gamma=0.1)
+        # scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer,
+        #         10, # epochs between stepping lr
+        #         gamma=0.1)
         # Begin training. Iterate over each epoch to (i) optimize network and
         # (ii) calculate validation loss.
         best_loss = None 
@@ -246,8 +246,8 @@ class CXRClassifier(object):
                 
             # If the validation loss has not improved, decay the 
             # learning rate
-            if i_epoch != 0:
-                scheduler.step()
+            # if i_epoch != 0:
+            #     scheduler.step()
 
             # Write information on this epoch to a log.
             logstr = "Epoch {:03d}: ".format(i_epoch) +\
@@ -392,10 +392,9 @@ class CXRClassifier(object):
         torch.save(state, checkpoint_path)
 
     def _get_optimizer(self, lr, weight_decay):
-        opt = torch.optim.SGD(
+        opt = torch.optim.AdamW(
                 filter(lambda p: p.requires_grad, self.model.parameters()),
                 lr=lr,
-                momentum=0.9,
                 weight_decay=weight_decay)
         return opt
 
