@@ -32,6 +32,7 @@ from datasets import (
 )
 from utils import get_preprocessing, get_gradcam, denormalize_image
 from PIL import Image
+from load_data import load_dataset_1, load_dataset_3
 
 mean = [0.485, 0.456, 0.406]
 std = [0.229, 0.224, 0.225]
@@ -103,36 +104,15 @@ def gradcam_visualizations(save_path, thresholds, gradcams, dataset):
             sn.reset_defaults()
             plt.clf()
 
-def visualize_miou_tresholds(preprocess, split_path, heatmap_name, thresholds, gradcam_names, model_paths):
-    augments = get_preprocessing(preprocess)
-
-    trainds = DomainConfoundedDataset(
-            BIMCVNegativeDataset(fold='all', augments=augments, labels='chestx-ray14'),
-            BIMCVCOVIDDataset(fold='all', augments=augments, labels='chestx-ray14')
-            )
-    valds = DomainConfoundedDataset(
-            BIMCVNegativeDataset(fold='all', labels='chestx-ray14', augments=augments),
-            BIMCVCOVIDDataset(fold='all', labels='chestx-ray14', augments=augments)
-            )
-    
-    split_dir = f"splits/{split_path}"
-    trainds.ds1.df = pd.read_csv(f"{split_dir}/negative-train.csv")
-    valds.ds1.df = pd.read_csv(f"{split_dir}/negative-val.csv")
-
-    trainds.ds2.df = pd.read_csv(f"{split_dir}/positive-train.csv")
-    valds.ds2.df = pd.read_csv(f"{split_dir}/positive-val.csv")
-
-    root_dir = Path(f"examples/gradcam_ious/{split_path}/{heatmap_name}")
-    Path(root_dir).mkdir(parents=True, exist_ok=True)
-
+def visualize_miou_tresholds(dataset, save_path, thresholds, gradcam_names, model_paths):
     for gradcam_name in gradcam_names:
         print(f"Starting visualizations for {gradcam_name}")
-        path = root_dir / gradcam_name
+        path = save_path / gradcam_name
         gradcams = [
-            get_gradcam(gradcam_name, path) for path in model_paths
+            get_gradcam(gradcam_name, path) for path in list(model_paths)
         ]
-        gradcam_visualizations(path / "positive-train", thresholds, gradcams, trainds.ds1)
-        gradcam_visualizations(path / "positive-val", thresholds, gradcams, valds.ds2)
+        # gradcam_visualizations(path / "negative-val", thresholds, gradcams, dataset.ds1)
+        gradcam_visualizations(path / "positive-val", thresholds, gradcams, dataset.ds2)
 
 if __name__ == "__main__":
     # parser = argparse.ArgumentParser(
@@ -145,11 +125,21 @@ if __name__ == "__main__":
     # args = parser.parse_args()
 
     thresholds = [0.5, 0.6, 0.7]
-    gradcam_names = ["grad++_cam", "eigen_cam", "eigengrad_cam"]
-    for name in [
-        "strong-strong"
-    ]:
-        model_paths =list(Path("checkpoints", "strong-strong").rglob("*"))
-
-        split_path = "42/dataset3"
-        visualize_miou_tresholds(name.split("-")[1], split_path, name, thresholds, gradcam_names, model_paths)
+    gradcam_names = ["grad++_cam"]
+    split_name = f"42"
+    preprocessing = 'crop_pad-0.9'
+    for n in [1, 3]:
+        if n == 1:
+            ds = load_dataset_1(42, False, preprocessing=preprocessing, split_name=split_name)
+        else:
+            ds = load_dataset_3(42, False, preprocessing=preprocessing, split_name=split_name)
+        
+        for name in [
+            "no_augments",
+            "baseline-augments",
+            "random_crop-strong"
+        ]:
+            model_paths =list(Path("checkpoints", "16", name, "crop_pad-0.9").rglob("*"))
+            root_dir = Path(f"examples/gradcam_ious/{split_name}/dataset{n}/{name}")
+            Path(root_dir).mkdir(parents=True, exist_ok=True)
+            visualize_miou_tresholds(ds, root_dir, thresholds, gradcam_names, model_paths)
