@@ -34,7 +34,9 @@ std = [0.229, 0.224, 0.225]
 CLASS_NAMES = ["No Covid", "Covid"]
 
 def log_metrics(stage, epoch, step_loss, step_auroc):
-    log_dict = {f"loss/{stage}": step_loss, f"auroc/{stage}": step_auroc, "epoch": epoch}
+    log_dict = {f"loss/{stage}": step_loss, "epoch": epoch}
+    if step_auroc is not None:
+        log_dict[f"auroc/{stage}"] = step_auroc
     wandb.log(log_dict)
 
 def log_image(_type, stage, image, class_name, epoch, logged_idx):
@@ -323,20 +325,17 @@ class CXRClassifier(object):
             
             batch_loss.backward()
             # Update the running sum of the loss
-            step_loss = batch_loss.data.item()*current_batch_size
-            loss += step_loss
+            step_loss = batch_loss.data.item()
 
             if epoch == -1: break
             if epoch >= 0:
                 self.optimizer.step()
 
-            #IMPORTANT
-            if (i + 1) % 25 == 0: 
-                log_metrics("train", epoch, step_loss / current_batch_size, auroc.compute().item())
+            log_metrics("train", epoch, step_loss, None)
 
             self.log_images("train", inputs, covid_labels, logged_per_class, epoch)
         if epoch != -1:
-            log_metrics("train", epoch, loss / len(train_dataloader), auroc.compute().item())
+            log_metrics("train", epoch, step_loss, auroc.compute().item())
             log_confusion_matrix("train", epoch, confmat.compute().numpy())
             
         return loss
