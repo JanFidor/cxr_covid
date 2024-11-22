@@ -19,7 +19,7 @@ import torch.nn as nn
 from tqdm import *
 
 import wandb
-from torchmetrics import AUROC
+from torchmetrics import AUROC, Precision, Recall, F1Score
 from pytorch_grad_cam import GradCAM, EigenCAM, GradCAMPlusPlus, EigenGradCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
@@ -33,10 +33,10 @@ std = [0.229, 0.224, 0.225]
 
 CLASS_NAMES = ["No Covid", "Covid"]
 
-def log_metrics(stage, epoch, step_loss, step_auroc):
+def log_metrics(stage, epoch, step_loss, metrics):
     log_dict = {f"loss/{stage}": step_loss, "epoch": epoch}
-    if step_auroc is not None:
-        log_dict[f"auroc/{stage}"] = step_auroc
+    for k, v in (metrics or {}).items():
+        log_dict[f"{k}/{stage}"] = v
     wandb.log(log_dict)
 
 def log_image(_type, stage, image, class_name, epoch, logged_idx):
@@ -141,7 +141,6 @@ class CXRClassifier(object):
             ("eigen_cam", EigenCAM(model=self.model, target_layers=gradcam_layers)),
             ("grad++_cam", GradCAMPlusPlus(model=self.model, target_layers=gradcam_layers))
         ]
-
 
     def train(self, 
               train_dataset, 
@@ -295,8 +294,14 @@ class CXRClassifier(object):
 
     def _train_epoch(self, train_dataloader, epoch):
         auroc = AUROC('binary').cpu()
+        precision = Precision(task='binary').cpu()
+        recall = Recall(task='binary').cpu()
+        f1 = F1Score(task='binary').cpu()
         confmat = ConfusionMatrix(task="binary", num_classes=2).cpu()
-        self.model.train(True)
+        if epoch > 0:
+            self.model.train(True)
+        else:
+            self.model.eval()
         loss = 0
         logged_per_class = {}
         
@@ -319,7 +324,11 @@ class CXRClassifier(object):
             covid_labels = labels.to(torch.int)[:,-1]
             predictions = (outputs[:,-1] > 0).int()  # Convert logits to predictions
             auroc.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
-            confmat.update(predictions.detach().cpu(), covid_labels.detach().cpu())
+
+            precision.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
+            recall.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
+            f1.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
+            confmat.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
             
             # update the network's weights
             
@@ -328,20 +337,29 @@ class CXRClassifier(object):
             step_loss = batch_loss.data.item()
 
             if epoch == -1: break
-            if epoch >= 0:
+            if epoch > 0:
                 self.optimizer.step()
 
             log_metrics("train", epoch, step_loss, None)
 
             self.log_images("train", inputs, covid_labels, logged_per_class, epoch)
         if epoch != -1:
-            log_metrics("train", epoch, step_loss, auroc.compute().item())
+            logdict = {
+                "precision": precision.compute().item(),
+                "recall": recall.compute().item(),
+                "f1": f1.compute().item(),
+                "auroc": auroc.compute().item()
+            }
+            log_metrics("train", epoch, step_loss, logdict)
             log_confusion_matrix("train", epoch, confmat.compute().numpy())
             
         return loss
 
     def _val_epoch(self, val_dataloader, epoch):
         auroc = AUROC('binary').cpu()
+        precision = Precision(task='binary').cpu()
+        recall = Recall(task='binary').cpu()
+        f1 = F1Score(task='binary').cpu()
         confmat = ConfusionMatrix(task="binary", num_classes=2).cpu()
         self.model.train(False)
         
@@ -362,7 +380,11 @@ class CXRClassifier(object):
             covid_labels = labels.to(torch.int)[:,-1]
             predictions = (outputs[:,-1] > 0).int()  # Convert logits to predictions
             auroc.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
-            confmat.update(predictions.detach().cpu(), covid_labels.detach().cpu())
+            
+            precision.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
+            recall.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
+            f1.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
+            confmat.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
             # Calculate the loss
             batch_loss = self.lossfunc(outputs, labels)
 
@@ -372,7 +394,13 @@ class CXRClassifier(object):
 
             self.log_images("val", inputs, covid_labels, logged_per_class, epoch)
                 
-        log_metrics("val", epoch, loss / len(val_dataloader), auroc.compute().item())
+        logdict = {
+            "precision": precision.compute().item(),
+            "recall": recall.compute().item(),
+            "f1": f1.compute().item(),
+            "auroc": auroc.compute().item()
+        }
+        log_metrics("val", epoch, step_loss, logdict)
         log_confusion_matrix("val", epoch, confmat.compute().numpy())
         return loss, auroc.compute().item()
 

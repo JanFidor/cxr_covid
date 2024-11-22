@@ -5,10 +5,13 @@ import torch
 import numpy as np
 import math
 from  monai.transforms import RandSpatialCrop, SpatialPad, RandAffined
+from torch import nn
 
 MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225]
 NORMALIZED_BLACK = [-0.485/0.229, -0.456/0.224, -0.406/0.225]
+
+
 
 def get_transforms(name, abstract_intensity = None):
     if name == 'none': return v2.Identity()
@@ -31,12 +34,20 @@ def get_transforms(name, abstract_intensity = None):
             rot, trans, scale = 5, 0.1, 0.1
         return v2.RandomAffine(degrees=rot, translate=(trans, trans), scale=(1-scale, 1+scale), fill=NORMALIZED_BLACK)
     if name == 'crop':
+        right = 0
         intensity = 0
         if abstract_intensity == 'weak': intensity = 0.15
         if abstract_intensity == 'strong': intensity = 0.25
+        if abstract_intensity == 'weak-forced': 
+            intensity = 0.15
+            right = 0.1
+        if abstract_intensity == 'strong-forced': 
+            intensity = 0.25
+            right = 0.15
+
         return v2.Compose([
             v2.Lambda(lambda x: denormalize(x)),
-            RandSpatialCrop(roi_size=224*(1 - intensity), max_roi_size=224, random_center=False,random_size=True),
+            RandSpatialCrop(roi_size=224*(1 - intensity), max_roi_size=224*(1 - right), random_center=False,random_size=True),
             SpatialPad(spatial_size=(224, 224), mode="constant", constant_values=0),
             v2.Normalize(MEAN, STD),
         ])
@@ -119,6 +130,18 @@ AUGMENTATION_SETUP = {
         get_transforms('color', 'medium'),
         get_transforms('flip'),
     ]),
+    "random_crop-weak-forced": v2.Compose([
+        get_transforms('crop', 'weak-forced'),
+        get_transforms('affine', 'weak'),
+        get_transforms('color', 'medium'),
+        get_transforms('flip'),
+    ]),
+    "random_crop-strong-forced": v2.Compose([
+        get_transforms('crop', 'strong-forced'),
+        get_transforms('affine', 'weak'),
+        get_transforms('color', 'medium'),
+        get_transforms('flip'),
+    ]),
     "random_crop-strong-affine": random_compose([
         get_transforms('crop', 'strong'),
         get_transforms('affine', 'strong'),
@@ -135,3 +158,42 @@ VISUALIZATION_SETUP = {
     "ColorStrongMax": color_visualize(1.4, 1.4),
     "ColorStrongMin": color_visualize(0.6, 0.6),
 }
+
+class RandomCenterCrop(nn.Module):
+    """
+    Randomly crops the center of the image with size between min_scale and max_scale of original size,
+    then pads back to original size with normalized black pixels.
+    Args:
+        min_scale (float): minimum scale of the crop (between 0 and 1)
+        max_scale (float): maximum scale of the crop (between 0 and 1)
+    """
+    def __init__(self, min_scale=0.8, max_scale=1.0):
+        super().__init__()
+        self.min_scale = min_scale
+        self.max_scale = max_scale
+
+    def forward(self, img):
+        # Store original size
+        _, orig_h, orig_w = img.shape
+        
+        # Generate random scale between min_scale and max_scale
+        scale = torch.empty(1).uniform_(self.min_scale, self.max_scale).item()
+        
+        # Calculate crop size
+        new_h = int(orig_h * scale)
+        new_w = int(orig_w * scale)
+        
+        # Center crop
+        cropped = F.center_crop(img, [new_h, new_w])
+        
+        # Calculate padding
+        pad_h = (orig_h - new_h) // 2
+        pad_w = (orig_w - new_w) // 2
+        
+        # Pad back to original size with normalized black
+        return F.pad(cropped, 
+                    [pad_w, pad_w, pad_h, pad_h], 
+                    fill=NORMALIZED_BLACK)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(min_scale={self.min_scale}, max_scale={self.max_scale})" 
