@@ -34,11 +34,11 @@ from load_data import load_dataset_1, load_dataset_2, load_dataset_3
 from logger import initialize_wandb
 from utils import get_augmentations, get_preprocessing
 import wandb
-from torchmetrics import AUROC
+from torchmetrics import AUROC, Precision, Recall, F1Score
 from tqdm import tqdm
 from torchmetrics.classification.confusion_matrix import ConfusionMatrix
 
-MAX_BATCH=16
+MAX_BATCH=256
 
 def train_dataset_1(
     experiment_name,
@@ -123,7 +123,7 @@ def train_dataset_3(
     max_epochs=30,
 ):
     trainds = load_dataset_3(seed, is_train=True, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
-    valds = load_dataset_3(seed, is_train=False, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
+    valds = load_dataset_3(seed, is_train=False, augments_name=augments_name, preprocessing='none', split_name=split_name)
 
     # generate log and checkpoint paths
     logpath = f'logs/{experiment_name}.dataset3.{model_name}.{seed}.log'
@@ -168,8 +168,11 @@ def evaluate_dataset_1(
     )
     
     # Initialize metrics
-    auroc = AUROC(task='binary').cuda()
-    confmat = ConfusionMatrix(task="binary", num_classes=2).cuda()
+    auroc = AUROC('binary').cpu()
+    precision = Precision(task='binary').cpu()
+    recall = Recall(task='binary').cpu()
+    f1 = F1Score(task='binary').cpu()
+    confmat = ConfusionMatrix(task="binary", num_classes=2).cpu()
     
     with torch.no_grad():
         for batch in tqdm(dl, leave=False):
@@ -179,16 +182,25 @@ def evaluate_dataset_1(
             outputs = model(inputs)
             
             # Only keep COVID predictions (last column)
-            covid_outputs = outputs[:, -1]
-            covid_labels = labels[:, -1]
+            covid_outputs = outputs[:, -1].detach().cpu()
+            covid_labels = labels[:, -1].detach().cpu()
             
             # Update metrics
             auroc.update(covid_outputs, covid_labels.int())
             predictions = (covid_outputs > 0).int()  # Convert logits to predictions
             confmat.update(predictions, covid_labels.int())
+            precision.update(predictions, covid_labels.int())
+            recall.update(predictions, covid_labels.int())
+            f1.update(predictions, covid_labels.int())
+            confmat.update(predictions, covid_labels.int())
             
     _auroc = float(auroc.compute().cpu())
-    log_dict = {f"auroc/test_ood": _auroc}
+    _precision = float(precision.compute().cpu())
+    _recall = float(recall.compute().cpu())
+    _f1 = float(f1.compute().cpu())
+
+    log_dict = {
+        f"auroc/test_ood": _auroc, f"precision/test_ood": _precision, f"recall/test_ood": _recall, f"f1/test_ood": _f1}
     if epoch is not None:
         log_dict[f"epoch"] = epoch
     wandb.log(log_dict)
