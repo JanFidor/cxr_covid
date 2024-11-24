@@ -78,35 +78,44 @@ def train_dataset_2(
     experiment_name,
     seed,
     model_name,
+    batch_size,
     freeze_features=False,
-    augments_name=None,
     preprocessing=None,
-    split_name=None
+    augments_name=None,
+    split_name=None,
+    group_name=None,
+    lr=0.01,
+    weight_decay=1e-4,
+    max_epochs=30,
 ):
     trainds = load_dataset_2(seed, is_train=True, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
     valds = load_dataset_2(seed, is_train=False, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
 
     # generate log and checkpoint paths
-    logpath = f'logs/{experiment_name}.dataset2.{model_name}.{seed}.log'
-    checkpointpath = f'checkpoints/{experiment_name}.dataset2.{model_name}.{seed}.pkl'
+    logpath = f'logs/{experiment_name}.dataset3.{model_name}.{seed}.log'
+    checkpointdir = f"checkpoints/{group_name or 'ungrouped'}/"
 
-    classifier = CXRClassifier()
+    Path(checkpointdir).mkdir(parents=True, exist_ok=True)
+    checkpointpath = f"{checkpointdir}/{experiment_name}-{seed}.pkl"
+
+    classifier = CXRClassifier(seed=seed)
     classifier.train(
         trainds,
         valds,
-        max_epochs=30,
-        lr=0.01, 
-        weight_decay=1e-4,
+        max_epochs=max_epochs,
+        lr=lr, 
+        batch_size=batch_size,
+        weight_decay=weight_decay,
         logpath=logpath,
         checkpoint_path=checkpointpath,
         verbose=True,
         model_name=model_name,
         freeze_features=freeze_features,
-        batch_size=8
     )
-    wandb.save(checkpointpath)
-    wandb.save(f"{checkpointpath}.best_auroc")
-    wandb.save(f"{checkpointpath}.best_loss")
+
+    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, epoch=max_epochs)
+
+    wandb.save(f"{checkpointpath}*", base_path=checkpointdir)
 
 def train_dataset_3(
     experiment_name,
@@ -121,9 +130,10 @@ def train_dataset_3(
     lr=0.01,
     weight_decay=1e-4,
     max_epochs=30,
+    flipped=0
 ):
-    trainds = load_dataset_3(seed, is_train=True, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
-    valds = load_dataset_3(seed, is_train=False, augments_name=augments_name, preprocessing='none', split_name=split_name)
+    trainds = load_dataset_3(seed, is_train=True, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name, flipped=flipped)
+    valds = load_dataset_3(seed, is_train=False, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
 
     # generate log and checkpoint paths
     logpath = f'logs/{experiment_name}.dataset3.{model_name}.{seed}.log'
@@ -237,6 +247,7 @@ def main():
     parser.add_argument('--weight-decay', dest='weight_decay', type=float, default=1e-4, required=False,
                         help='Weight decay')
     parser.add_argument('--max-epochs', dest='max_epochs', type=int, default=1, required=False)
+    parser.add_argument('--flipped', dest='flipped', type=float, default=0, required=False)
     args = parser.parse_args()
 
     for dirname in ['checkpoints', 'logs']:
@@ -266,14 +277,19 @@ def main():
             split_name=args.split
         )
     if args.dataset == 2:
-        train_dataset_2(
+        train_dataset_3(
             args.experiment,
             args.seed, 
             model_name=args.network, 
             freeze_features=(args.network.lower() == 'logistic'),
             augments_name=args.augments,
             preprocessing=args.preprocessing,
-            split_name=args.split
+            split_name=args.split,
+            group_name=args.group,
+            batch_size=args.batch,
+            lr=args.lr,
+            weight_decay=args.weight_decay,
+            max_epochs=args.max_epochs,
         )
     if args.dataset == 3:
         train_dataset_3(
@@ -289,6 +305,7 @@ def main():
             lr=args.lr,
             weight_decay=args.weight_decay,
             max_epochs=args.max_epochs,
+            flipped=args.flipped
         )
 
 if __name__ == "__main__":
