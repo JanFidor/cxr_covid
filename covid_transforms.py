@@ -51,6 +51,11 @@ def get_transforms(name, abstract_intensity = None):
             SpatialPad(spatial_size=(224, 224), mode="constant", constant_values=0),
             v2.Normalize(MEAN, STD),
         ])
+    if name == "random_center_crop":
+        if abstract_intensity == 'strong-forced': 
+            intensity = 0.25
+            right = 0.15
+        return RandomCenterCrop(min_scale=1-intensity, max_scale=1-right)
     if name == 'flip':
         return v2.RandomHorizontalFlip(p=0.5)
     
@@ -148,6 +153,12 @@ AUGMENTATION_SETUP = {
         get_transforms('color', 'medium'),
         get_transforms('flip'),
     ], 1),
+    "random_center_crop-strong-forced": random_compose([
+        get_transforms('crop', 'strong'),
+        get_transforms('affine', 'strong'),
+        get_transforms('color', 'medium'),
+        get_transforms('flip'),
+    ], 1),
 }
 
 
@@ -191,9 +202,11 @@ class RandomCenterCrop(nn.Module):
         pad_w = (orig_w - new_w) // 2
         
         # Pad back to original size with normalized black
-        return F.pad(cropped, 
+        cropped = denormalize(cropped)
+        padded = F.pad(cropped, 
                     [pad_w, pad_w, pad_h, pad_h], 
-                    fill=NORMALIZED_BLACK)
+                    fill=0)
+        return v2.Normalize(MEAN, STD)(padded)
 
     def __repr__(self):
         return f"{self.__class__.__name__}(min_scale={self.min_scale}, max_scale={self.max_scale})" 
