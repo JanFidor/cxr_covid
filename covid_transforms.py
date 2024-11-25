@@ -32,6 +32,8 @@ def get_transforms(name, abstract_intensity = None):
             rot, trans, scale = 0, 0.05, 0
         if abstract_intensity == 'strong':
             rot, trans, scale = 5, 0.1, 0.1
+        if abstract_intensity == 'extreme':
+            rot, trans, scale = 5, 0.15, 0.2
         return v2.RandomAffine(degrees=rot, translate=(trans, trans), scale=(1-scale, 1+scale), fill=NORMALIZED_BLACK)
     if name == 'crop':
         right = 0
@@ -51,7 +53,7 @@ def get_transforms(name, abstract_intensity = None):
             SpatialPad(spatial_size=(224, 224), mode="constant", constant_values=0),
             v2.Normalize(MEAN, STD),
         ])
-    if name == "random_center_crop":
+    if name == "center_crop":
         if abstract_intensity == 'strong-forced': 
             intensity = 0.25
             right = 0.15
@@ -118,6 +120,16 @@ def random_compose(augmentations, p=1):
 
 AUGMENTATION_SETUP = {
     "no_augments": v2.Identity(),
+    "color-jitter": v2.Compose([
+        get_transforms('color', 'medium'),
+    ]),
+    "affine-weak": v2.Compose([
+        get_transforms('affine', 'weak'),
+    ]),
+    "flip": v2.Compose([
+        get_transforms('flip'),
+    ]),
+
     "baseline-augments": v2.Compose([
         get_transforms('affine', 'weak'),
         get_transforms('color', 'medium'),
@@ -147,16 +159,28 @@ AUGMENTATION_SETUP = {
         get_transforms('color', 'medium'),
         get_transforms('flip'),
     ]),
-    "random_crop-strong-affine": random_compose([
+    "random_center_crop-strong-forced": v2.Compose([
+        get_transforms('center_crop', 'strong-forced'),
+        get_transforms('affine', 'weak'),
+        get_transforms('color', 'medium'),
+        get_transforms('flip'),
+    ]),
+    "random_crop-strong-affine-forced": random_compose([
+        get_transforms('crop', 'strong-forced'),
+        get_transforms('affine', 'strong'),
+        get_transforms('color', 'medium'),
+        get_transforms('flip'),
+    ], 1),
+    "random_center_crop-strong-affine": random_compose([
         get_transforms('crop', 'strong'),
         get_transforms('affine', 'strong'),
         get_transforms('color', 'medium'),
         get_transforms('flip'),
     ], 1),
-    "random_center_crop-strong-forced": random_compose([
-        get_transforms('crop', 'strong'),
-        get_transforms('affine', 'strong'),
-        get_transforms('color', 'medium'),
+    "random_crop-extreme-affine-forced": random_compose([
+        get_transforms('crop', 'strong-forced'),
+        get_transforms('affine', 'extreme'),
+        get_transforms('color', 'strong'),
         get_transforms('flip'),
     ], 1),
 }
