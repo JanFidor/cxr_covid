@@ -10,6 +10,7 @@ import torchvision
 
 from datasets import *
 import sklearn
+import torchxrayvision as xrv
 
 
 from torch.nn import Module
@@ -110,6 +111,8 @@ class CXRClassifier(object):
         self.g = torch.Generator()
         self.g.manual_seed(seed)
 
+        self.is_cut = False
+
     def build_model(self, n_labels, pretrained):
         self.model = torchvision.models.densenet121(pretrained=pretrained)
         num_ftrs = self.model.classifier.in_features
@@ -125,6 +128,27 @@ class CXRClassifier(object):
             self.model.features[-2].denselayer16.conv2
         ]
         self._prepare_gradcams(gradcam_layers)
+    
+    def medical_model(self, n_labels, dataset):
+        self.model = xrv.models.DenseNet(
+            weights=f"densenet121-res224-{dataset}"
+        )
+        num_ftrs = self.model.classifier.in_features
+        self.model.op_threshs = None
+        # Add a classification head; consists of standard dense layer with
+        # sigmoid activation and one output node per pathology in train_dataset
+        self.model.classifier = torch.nn.Sequential(
+                torch.nn.Linear(num_ftrs, n_labels))
+
+        # Put model on GPU
+        self.model.cuda()
+
+        gradcam_layers = [
+            self.model.features[-2].denselayer16.conv2
+        ]
+        self._prepare_gradcams(gradcam_layers)
+
+        self.is_cut = True
     
     def build_model_scratch(self, n_labels):
         self.model = AlexNet(n_labels)
@@ -207,9 +231,16 @@ class CXRClassifier(object):
         self.n_labels = len(train_dataset.labels)
         if model_name == 'alexnet':
             self.build_model_scratch(len(train_dataset.labels))
-        else:
-            pretrained = model_name == 'logistic' or model_name.split("-")[1] == 'pretrain'
+        elif model_name == 'logistic':
+            self.build_model(len(train_dataset.labels), False)
+        elif model_name.startswith('densenet121'):
+            pretrained = model_name.split("-")[1] == 'pretrain'
             self.build_model(len(train_dataset.labels), pretrained)
+        elif model_name.startswith('medical'):
+            dataset = model_name.split("-")[1]
+            self.medical_model(len(train_dataset.labels), dataset)
+        else:
+            raise ValueError(f"Model {model_name} not found")
 
         # Freeze weights if desired
         if freeze_features:
@@ -311,6 +342,8 @@ class CXRClassifier(object):
 
             # Transfer inputs (images) and labels (arrays of ints) to 
             # GPU
+            if self.is_cut:
+                inputs = inputs[:, :1, :, :]
             inputs = inputs.cuda()
             labels = labels.cuda().float()
             outputs = self.model(inputs)
@@ -371,7 +404,10 @@ class CXRClassifier(object):
 
             # Transfer inputs (images) and labels (arrays of ints) to 
             # GPU
+            if self.is_cut:
+                inputs = inputs[:, :1, :, :]
             inputs = inputs.cuda()
+            
             labels = labels.cuda().float()
             outputs = self.model(inputs)
 

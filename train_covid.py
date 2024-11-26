@@ -157,10 +157,10 @@ def train_dataset_3(
         freeze_features=freeze_features,
     )
 
-    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=False)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=False, is_cut=classifier.is_cut)
     bestpath = f"{checkpointpath}.best_auroc"
     classifier.load_checkpoint(bestpath)
-    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=True)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=True, is_cut=classifier.is_cut)
 
     wandb.save(f"{checkpointpath}*", base_path=checkpointdir)
 
@@ -170,7 +170,8 @@ def evaluate_dataset_1(
     preprocessing=None,
     split_name=None,
     epoch=None,
-    is_best=False
+    is_best=False,
+    is_cut=False
 ):  
     model.eval()
     ds = load_dataset_1(seed, fold='test', preprocessing=preprocessing, split_name=split_name)
@@ -191,6 +192,8 @@ def evaluate_dataset_1(
     with torch.no_grad():
         for batch in tqdm(dl, leave=False):
             inputs, labels, _, _ = batch
+            if is_cut:
+                inputs = inputs[:, :1, :, :]
             inputs = inputs.cuda()
             labels = labels.cuda()
             outputs = model(inputs)
