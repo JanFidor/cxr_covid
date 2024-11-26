@@ -183,7 +183,7 @@ def load_dataset_3(
     augments_name=None,
     preprocessing=None,
     split_name=None,
-    flipped=None
+    flipped=0
 ):
     augments = get_augmentations(augments_name)
     preprocessing = get_preprocessing(preprocessing)
@@ -196,7 +196,6 @@ def load_dataset_3(
     ds = DomainConfoundedDataset(
         BIMCVNegativeDataset(fold='all', labels='chestx-ray14', augments=train_transforms, random_state=seed),
         BIMCVCOVIDDataset(fold='all', labels='chestx-ray14', augments=train_transforms, random_state=seed, is_old=True),
-        flipped
     )
     
     split_dir = f"splits/{split_name}/dataset3"
@@ -204,8 +203,8 @@ def load_dataset_3(
         ds.ds1.df = pd.read_csv(f"{split_dir}/negative-{fold}.csv")
         ds.ds2.df = pd.read_csv(f"{split_dir}/positive-{fold}.csv")
 
-        if flipped:
-            ds.flip_indices=pd.read_csv(f"split_dir/train-{flipped}.csv")["flipped_indices"].values
+        if flipped != 0:
+            ds.flip_indices=pd.read_csv(f"{split_dir}/train-{flipped}.csv")["flipped_indices"].values
     else:
         trainvaldf1, testdf1, trainvaldf2, testdf2 = ds3_grouped_split(ds.ds1.df, ds.ds2.df, random_state=seed)
         traindf1, valdf1, traindf2, valdf2 = ds3_grouped_split(trainvaldf1, trainvaldf2, random_state=seed)
