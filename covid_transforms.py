@@ -11,7 +11,46 @@ MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225]
 NORMALIZED_BLACK = [-0.485/0.229, -0.456/0.224, -0.406/0.225]
 
+class RandomCenterCrop(nn.Module):
+    """
+    Randomly crops the center of the image with size between min_scale and max_scale of original size,
+    then pads back to original size with normalized black pixels.
+    Args:
+        min_scale (float): minimum scale of the crop (between 0 and 1)
+        max_scale (float): maximum scale of the crop (between 0 and 1)
+    """
+    def __init__(self, min_scale=0.8, max_scale=1.0):
+        super().__init__()
+        self.min_scale = min_scale
+        self.max_scale = max_scale
 
+    def forward(self, img):
+        # Store original size
+        _, orig_h, orig_w = img.shape
+        
+        # Generate random scale between min_scale and max_scale
+        scale = torch.empty(1).uniform_(self.min_scale, self.max_scale).item()
+        
+        # Calculate crop size
+        new_h = int(orig_h * scale)
+        new_w = int(orig_w * scale)
+        
+        # Center crop
+        cropped = F.center_crop(img, [new_h, new_w])
+        
+        # Calculate padding
+        pad_h = (orig_h - new_h) // 2
+        pad_w = (orig_w - new_w) // 2
+        
+        # Pad back to original size with normalized black
+        cropped = denormalize(cropped)
+        padded = F.pad(cropped, 
+                    [pad_w, pad_w, pad_h, pad_h], 
+                    fill=0)
+        return v2.Normalize(MEAN, STD)(padded)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(min_scale={self.min_scale}, max_scale={self.max_scale})" 
 
 def get_transforms(name, abstract_intensity = None):
     if name == 'none': return v2.Identity()
@@ -194,43 +233,3 @@ VISUALIZATION_SETUP = {
     "ColorStrongMin": color_visualize(0.6, 0.6),
 }
 
-class RandomCenterCrop(nn.Module):
-    """
-    Randomly crops the center of the image with size between min_scale and max_scale of original size,
-    then pads back to original size with normalized black pixels.
-    Args:
-        min_scale (float): minimum scale of the crop (between 0 and 1)
-        max_scale (float): maximum scale of the crop (between 0 and 1)
-    """
-    def __init__(self, min_scale=0.8, max_scale=1.0):
-        super().__init__()
-        self.min_scale = min_scale
-        self.max_scale = max_scale
-
-    def forward(self, img):
-        # Store original size
-        _, orig_h, orig_w = img.shape
-        
-        # Generate random scale between min_scale and max_scale
-        scale = torch.empty(1).uniform_(self.min_scale, self.max_scale).item()
-        
-        # Calculate crop size
-        new_h = int(orig_h * scale)
-        new_w = int(orig_w * scale)
-        
-        # Center crop
-        cropped = F.center_crop(img, [new_h, new_w])
-        
-        # Calculate padding
-        pad_h = (orig_h - new_h) // 2
-        pad_w = (orig_w - new_w) // 2
-        
-        # Pad back to original size with normalized black
-        cropped = denormalize(cropped)
-        padded = F.pad(cropped, 
-                    [pad_w, pad_w, pad_h, pad_h], 
-                    fill=0)
-        return v2.Normalize(MEAN, STD)(padded)
-
-    def __repr__(self):
-        return f"{self.__class__.__name__}(min_scale={self.min_scale}, max_scale={self.max_scale})" 
