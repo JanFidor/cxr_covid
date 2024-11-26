@@ -157,7 +157,10 @@ def train_dataset_3(
         freeze_features=freeze_features,
     )
 
-    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, epoch=max_epochs)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=False)
+    bestpath = f"{checkpointpath}.best_auroc"
+    classifier.load_checkpoint(bestpath)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=True)
 
     wandb.save(f"{checkpointpath}*", base_path=checkpointdir)
 
@@ -166,7 +169,8 @@ def evaluate_dataset_1(
     model,
     preprocessing=None,
     split_name=None,
-    epoch=None
+    epoch=None,
+    is_best=False
 ):  
     model.eval()
     ds = load_dataset_1(seed, fold='test', preprocessing=preprocessing, split_name=split_name)
@@ -208,9 +212,9 @@ def evaluate_dataset_1(
     _precision = float(precision.compute().cpu())
     _recall = float(recall.compute().cpu())
     _f1 = float(f1.compute().cpu())
-
+    name=f"test_{'best_auroc' if is_best else 'last'}"
     log_dict = {
-        f"auroc/test_ood": _auroc, f"precision/test_ood": _precision, f"recall/test_ood": _recall, f"f1/test_ood": _f1}
+        f"auroc/{name}": _auroc, f"precision/{name}": _precision, f"recall/{name}": _recall, f"f1/{name}": _f1}
     if epoch is not None:
         log_dict[f"epoch"] = epoch
     wandb.log(log_dict)

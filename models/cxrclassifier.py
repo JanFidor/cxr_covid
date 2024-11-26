@@ -238,12 +238,10 @@ class CXRClassifier(object):
             valloss /= len(val_dataset)
             
             # only save if improvement
-            # if best_loss is None or valloss < best_loss: 
-            #     best_loss = valloss
-            #     self.checkpoint(suffix='.best_loss')
-            # if best_auroc is None or valauroc > best_auroc:
-            #     best_auroc = valauroc
-            #     self.checkpoint(suffix='.best_auroc')
+            if best_auroc is None or valauroc > best_auroc:
+                best_auroc = valauroc
+                print(f"Updating best model, with auroc {best_auroc}")
+                self.checkpoint(suffix='.best_auroc')
                 
             # If the validation loss has not improved, decay the 
             # learning rate
