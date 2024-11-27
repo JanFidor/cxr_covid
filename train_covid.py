@@ -255,6 +255,8 @@ def main():
                         help='Weight decay')
     parser.add_argument('--max-epochs', dest='max_epochs', type=int, default=1, required=False)
     parser.add_argument('--flipped', dest='flipped', type=float, default=0, required=False)
+    parser.add_argument('--freeze', dest='freeze', type=int, default=0, required=False,
+                        help='Freeze network parameters (1 to freeze, 0 to not freeze)')
     args = parser.parse_args()
 
     for dirname in ['checkpoints', 'logs']:
@@ -278,7 +280,7 @@ def main():
             args.experiment,
             args.seed, 
             model_name=args.network, 
-            freeze_features=(args.network.lower() == 'logistic'),
+            freeze_features=args.freeze==1,
             augments_name=args.augments,
             preprocessing=args.preprocessing,
             split_name=args.split
@@ -288,7 +290,7 @@ def main():
             args.experiment,
             args.seed, 
             model_name=args.network, 
-            freeze_features=(args.network.lower() == 'logistic'),
+            freeze_features=args.freeze==1,
             augments_name=args.augments,
             preprocessing=args.preprocessing,
             split_name=args.split,
@@ -303,7 +305,7 @@ def main():
             args.experiment,
             args.seed, 
             model_name=args.network, 
-            freeze_features=(args.network.lower() == 'logistic'),
+            freeze_features=args.freeze==1,
             augments_name=args.augments,
             preprocessing=args.preprocessing,
             split_name=args.split,

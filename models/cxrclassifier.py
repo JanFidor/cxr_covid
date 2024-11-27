@@ -61,6 +61,18 @@ def seed_worker(worker_id):
     random.seed(worker_seed)
 
 
+class EncoderModel(Module):
+    def __init__(self, n_labels, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.model = xrv.autoencoders.ResNetAE(weights="101-elastic")
+        self.dropout = nn.Dropout(0.5)
+        self.classifier = nn.Linear(4608, n_labels)
+    def forward(self, x):
+        x = self.model.encode(x)
+        x = self.dropout(x)
+        return self.classifier(x.flatten(start_dim=1))
+
 class AlexNet(Module):
 
     def __init__(self, num_classes=1000):
@@ -130,23 +142,29 @@ class CXRClassifier(object):
         self._prepare_gradcams(gradcam_layers)
     
     def medical_model(self, n_labels, dataset):
-        self.model = xrv.models.DenseNet(
-            weights=f"densenet121-res224-{dataset}"
-        )
-        num_ftrs = self.model.classifier.in_features
-        self.model.op_threshs = None
-        # Add a classification head; consists of standard dense layer with
-        # sigmoid activation and one output node per pathology in train_dataset
-        self.model.classifier = torch.nn.Sequential(
-                torch.nn.Linear(num_ftrs, n_labels))
-
+        if dataset == 'encoder':
+            self.model = EncoderModel(n_labels)
+            gradcam_layers = [
+                self.model.model.layer4[1].conv3
+            ]
+        else:
+            self.model = xrv.models.DenseNet(
+                weights=f"densenet121-res224-{dataset}"
+            )
+            num_ftrs = self.model.classifier.in_features
+            self.model.op_threshs = None
+            # Add a classification head; consists of standard dense layer with
+            # sigmoid activation and one output node per pathology in train_dataset
+            self.model.classifier = torch.nn.Sequential(
+                    torch.nn.Linear(num_ftrs, n_labels))
+            
+            gradcam_layers = [
+                self.model.features[-2].denselayer16.conv2
+            ]
+            
+        self._prepare_gradcams(gradcam_layers)
         # Put model on GPU
         self.model.cuda()
-
-        gradcam_layers = [
-            self.model.features[-2].denselayer16.conv2
-        ]
-        self._prepare_gradcams(gradcam_layers)
 
         self.is_cut = True
     
@@ -345,8 +363,8 @@ class CXRClassifier(object):
             if self.is_cut:
                 inputs = inputs[:, :1, :, :]
             inputs = inputs.cuda()
-            labels = labels.cuda().float()
-            outputs = self.model(inputs)
+            labels = labels.cuda().float()[:, -1:]
+            outputs = self.model(inputs)[:, -1:]
 
             # Calculate the loss
             self.optimizer.zero_grad()
