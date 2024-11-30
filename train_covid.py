@@ -150,6 +150,11 @@ def train_dataset_3(
     classifier = CXRClassifier(5, seed=seed)
     classifier.train(
         trainds,
+        valds,
+        max_epochs=max_epochs,
+        lr=lr, 
+        batch_size=batch_size,
+        weight_decay=weight_decay,
         logpath=logpath,
         checkpoint_path=checkpointpath,
         verbose=True,
