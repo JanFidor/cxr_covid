@@ -144,6 +144,7 @@ class CXRClassifier(object):
     def medical_model(self, n_labels, dataset):
         if dataset == 'encoder':
             self.model = EncoderModel(n_labels)
+            self.model.cuda()
             gradcam_layers = [
                 self.model.model.layer4[1].conv3
             ]
@@ -157,14 +158,12 @@ class CXRClassifier(object):
             # sigmoid activation and one output node per pathology in train_dataset
             self.model.classifier = torch.nn.Sequential(
                     torch.nn.Linear(num_ftrs, n_labels))
-            
+            self.model.cuda()
             gradcam_layers = [
                 self.model.features[-2].denselayer16.conv2
             ]
             
         self._prepare_gradcams(gradcam_layers)
-        # Put model on GPU
-        self.model.cuda()
 
         self.is_cut = True
     

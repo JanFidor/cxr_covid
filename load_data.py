@@ -24,6 +24,7 @@ from datasets import (
     BIMCVNegativeDataset, 
     DomainConfoundedDataset
 )
+from datasets.masked_dataset import MaskedDataset
 from logger import initialize_wandb
 from utils import get_augmentations, get_preprocessing
 import wandb
@@ -119,7 +120,8 @@ def load_dataset_1(
     fold,
     augments_name='none',
     preprocessing='none',
-    split_name=None
+    split_name=None,
+    masks=False
 ):
     augments = get_augmentations(augments_name)
     preprocessing = get_preprocessing(preprocessing)
@@ -134,15 +136,22 @@ def load_dataset_1(
     elif fold == 'val':
         train_transforms = preprocessing
 
-    ds = DomainConfoundedDataset(
-        ChestXray14Dataset(fold='train', augments=train_transforms, labels='chestx-ray14', random_state=seed),
-        GitHubCOVIDDataset(fold='train', augments=train_transforms, labels='chestx-ray14', random_state=seed)
-        )
+    neg = ChestXray14Dataset(fold='train', augments=train_transforms, labels='chestx-ray14', random_state=seed)
+    pos = GitHubCOVIDDataset(fold='train', augments=train_transforms, labels='chestx-ray14', random_state=seed)
     
     split_dir = f"splits/{split_name}/dataset1"
-    ds.ds1.df = pd.read_csv(f"{split_dir}/chestxray-{fold}.csv", index_col=0)
-    ds.ds1.meta_df = pd.read_csv(f"{split_dir}/chestxray-{fold}meta.csv", index_col=0)
-    ds.ds2.df = pd.read_csv(f"{split_dir}/githubcovid-{fold}.csv", index_col="filename")
+    neg.df = pd.read_csv(f"{split_dir}/chestxray-{fold}.csv", index_col=0)
+    neg.meta_df = pd.read_csv(f"{split_dir}/chestxray-{fold}meta.csv", index_col=0)
+    pos.df = pd.read_csv(f"{split_dir}/githubcovid-{fold}.csv", index_col="filename")
+
+    if masks is not None:
+        neg = MaskedDataset(neg, fold, masks)
+        pos = MaskedDataset(pos, fold, masks)
+
+    ds = DomainConfoundedDataset(
+        neg,
+        pos
+    )
 
     ds.len1 = len(ds.ds1)
     ds.len2 = len(ds.ds2)
@@ -153,7 +162,8 @@ def load_dataset_2(
     is_train,
     augments_name=None,
     preprocessing=None,
-    split_name=None
+    split_name=None,
+    is_masked=False
 ):
     augments = get_augmentations(augments_name)
     preprocessing = get_preprocessing(preprocessing)
@@ -180,10 +190,11 @@ def load_dataset_2(
 def load_dataset_3(
     seed,
     is_train,
-    augments_name=None,
-    preprocessing=None,
+    augments_name='none',
+    preprocessing='none',
     split_name=None,
-    flipped=0
+    flipped=0,
+    masks=None
 ):
     augments = get_augmentations(augments_name)
     preprocessing = get_preprocessing(preprocessing)
@@ -193,15 +204,13 @@ def load_dataset_3(
     ]) if is_train else v2.Compose([preprocessing])
     fold = 'train' if is_train else 'val'
 
-    ds = DomainConfoundedDataset(
-        BIMCVNegativeDataset(fold='all', labels='chestx-ray14', augments=train_transforms, random_state=seed),
-        BIMCVCOVIDDataset(fold='all', labels='chestx-ray14', augments=train_transforms, random_state=seed, is_old=True),
-    )
+    neg = BIMCVNegativeDataset(fold='all', labels='chestx-ray14', augments=train_transforms, random_state=seed)
+    pos = BIMCVCOVIDDataset(fold='all', labels='chestx-ray14', augments=train_transforms, random_state=seed, is_old=True)
     
     split_dir = f"splits/{split_name}/dataset3"
     if split_name:
-        ds.ds1.df = pd.read_csv(f"{split_dir}/negative-{fold}.csv")
-        ds.ds2.df = pd.read_csv(f"{split_dir}/positive-{fold}.csv")
+        neg.df = pd.read_csv(f"{split_dir}/negative-{fold}.csv")
+        pos.df = pd.read_csv(f"{split_dir}/positive-{fold}.csv")
 
         if flipped != 0:
             ds.flip_indices=pd.read_csv(f"{split_dir}/train-{flipped}.csv")["flipped_indices"].values
@@ -210,11 +219,20 @@ def load_dataset_3(
         traindf1, valdf1, traindf2, valdf2 = ds3_grouped_split(trainvaldf1, trainvaldf2, random_state=seed)
 
         if is_train:
-            ds.ds1.df = traindf1
-            ds.ds2.df = traindf2
+            neg.df = traindf1
+            pos.df = traindf2
         else:
-            ds.ds1.df = valdf1
-            ds.ds2.df = valdf2
+            neg.df = valdf1
+            pos.df = valdf2
+
+    if masks is not None:
+        neg = MaskedDataset(neg, fold, masks)
+        pos = MaskedDataset(pos, fold, masks)
+
+    ds = DomainConfoundedDataset(
+        neg,
+        pos
+    )
 
     ds.len1 = len(ds.ds1)
     ds.len2 = len(ds.ds2)

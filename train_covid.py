@@ -132,8 +132,13 @@ def train_dataset_3(
     max_epochs=30,
     flipped=0
 ):
-    trainds = load_dataset_3(seed, is_train=True, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name, flipped=flipped)
-    valds = load_dataset_3(seed, is_train=False, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
+    msks = [0] * 14
+    msks[4] = 1
+    msks[5] = 1
+    msks = torch.tensor(msks)
+
+    trainds = load_dataset_3(seed, is_train=True, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name, flipped=flipped, masks=msks)
+    valds = load_dataset_3(seed, is_train=False, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name, masks=msks)
 
     # generate log and checkpoint paths
     logpath = f'logs/{experiment_name}.dataset3.{model_name}.{seed}.log'
@@ -142,14 +147,9 @@ def train_dataset_3(
     Path(checkpointdir).mkdir(parents=True, exist_ok=True)
     checkpointpath = f"{checkpointdir}/{experiment_name}-{seed}.pkl"
 
-    classifier = CXRClassifier(seed=seed)
+    classifier = CXRClassifier(5, seed=seed)
     classifier.train(
         trainds,
-        valds,
-        max_epochs=max_epochs,
-        lr=lr, 
-        batch_size=batch_size,
-        weight_decay=weight_decay,
         logpath=logpath,
         checkpoint_path=checkpointpath,
         verbose=True,
@@ -157,10 +157,10 @@ def train_dataset_3(
         freeze_features=freeze_features,
     )
 
-    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=False, is_cut=classifier.is_cut)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=False, is_cut=classifier.is_cut, masks=msks)
     bestpath = f"{checkpointpath}.best_auroc"
     classifier.load_checkpoint(bestpath)
-    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=True, is_cut=classifier.is_cut)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=True, is_cut=classifier.is_cut, masks=msks)
 
     wandb.save(f"{checkpointpath}*", base_path=checkpointdir)
 
@@ -171,10 +171,11 @@ def evaluate_dataset_1(
     split_name=None,
     epoch=None,
     is_best=False,
-    is_cut=False
+    is_cut=False,
+    masks=None
 ):  
     model.eval()
-    ds = load_dataset_1(seed, fold='test', preprocessing=preprocessing, split_name=split_name)
+    ds = load_dataset_1(seed, fold='test', preprocessing=preprocessing, split_name=split_name, masks=masks)
     dl = torch.utils.data.DataLoader(
         ds,
         batch_size=MAX_BATCH,
