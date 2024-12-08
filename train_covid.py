@@ -211,7 +211,6 @@ def evaluate_dataset_1(
             # Update metrics
             auroc.update(covid_outputs, covid_labels.int())
             predictions = (covid_outputs > 0).int()  # Convert logits to predictions
-            confmat.update(predictions, covid_labels.int())
             precision.update(predictions, covid_labels.int())
             recall.update(predictions, covid_labels.int())
             f1.update(predictions, covid_labels.int())
