@@ -121,7 +121,9 @@ def load_dataset_1(
     augments_name='none',
     preprocessing='none',
     split_name=None,
-    masks=False
+    masks=None,
+    is_inverted=False,
+    is_binary=False
 ):
     augments = get_augmentations(augments_name)
     preprocessing = get_preprocessing(preprocessing)
@@ -145,8 +147,8 @@ def load_dataset_1(
     pos.df = pd.read_csv(f"{split_dir}/githubcovid-{fold}.csv", index_col="filename")
 
     if masks is not None:
-        neg = MaskedDataset(neg, fold, masks)
-        pos = MaskedDataset(pos, fold, masks)
+        neg = MaskedDataset(neg, fold, masks, is_inverted, is_binary)
+        pos = MaskedDataset(pos, fold, masks, is_inverted, is_binary)
 
     ds = DomainConfoundedDataset(
         neg,
@@ -194,7 +196,9 @@ def load_dataset_3(
     preprocessing='none',
     split_name=None,
     flipped=0,
-    masks=None
+    masks=None,
+    is_inverted=False,
+    is_binary=False
 ):
     augments = get_augmentations(augments_name)
     preprocessing = get_preprocessing(preprocessing)
@@ -226,8 +230,8 @@ def load_dataset_3(
             pos.df = valdf2
 
     if masks is not None:
-        neg = MaskedDataset(neg, fold, masks)
-        pos = MaskedDataset(pos, fold, masks)
+        neg = MaskedDataset(neg, fold, masks, is_inverted, is_binary)
+        pos = MaskedDataset(pos, fold, masks, is_inverted, is_binary)
 
     ds = DomainConfoundedDataset(
         neg,
