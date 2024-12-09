@@ -130,15 +130,17 @@ def train_dataset_3(
     lr=0.01,
     weight_decay=1e-4,
     max_epochs=30,
-    flipped=0
+    flipped=0,
+    is_inverted=False,
+    is_binary=False
 ):
     msks = [0] * 14
     msks[4] = 1
     msks[5] = 1
     msks = torch.tensor(msks)
 
-    trainds = load_dataset_3(seed, is_train=True, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name, flipped=flipped, masks=msks)
-    valds = load_dataset_3(seed, is_train=False, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name, masks=msks)
+    trainds = load_dataset_3(seed, is_train=True, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name, flipped=flipped, masks=msks, is_inverted=is_inverted, is_binary=is_binary)
+    valds = load_dataset_3(seed, is_train=False, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name, masks=msks, is_inverted=is_inverted, is_binary=is_binary)
 
     # generate log and checkpoint paths
     logpath = f'logs/{experiment_name}.dataset3.{model_name}.{seed}.log'
@@ -162,10 +164,10 @@ def train_dataset_3(
         freeze_features=freeze_features,
     )
 
-    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=False, is_cut=classifier.is_cut, masks=msks)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=False, is_cut=classifier.is_cut, masks=msks, is_inverted=is_inverted, is_binary=is_binary)
     bestpath = f"{checkpointpath}.best_auroc"
     classifier.load_checkpoint(bestpath)
-    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=True, is_cut=classifier.is_cut, masks=msks)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=True, is_cut=classifier.is_cut, masks=msks, is_inverted=is_inverted, is_binary=is_binary)
 
     wandb.save(f"{checkpointpath}*", base_path=checkpointdir)
 
@@ -177,10 +179,12 @@ def evaluate_dataset_1(
     epoch=None,
     is_best=False,
     is_cut=False,
-    masks=None
+    masks=None,
+    is_inverted=False,
+    is_binary=False
 ):  
     model.eval()
-    ds = load_dataset_1(seed, fold='test', preprocessing=preprocessing, split_name=split_name, masks=masks)
+    ds = load_dataset_1(seed, fold='test', preprocessing=preprocessing, split_name=split_name, masks=masks, is_inverted=is_inverted, is_binary=is_binary)
     dl = torch.utils.data.DataLoader(
         ds,
         batch_size=MAX_BATCH,
@@ -262,6 +266,8 @@ def main():
     parser.add_argument('--flipped', dest='flipped', type=float, default=0, required=False)
     parser.add_argument('--freeze', dest='freeze', type=int, default=0, required=False,
                         help='Freeze network parameters (1 to freeze, 0 to not freeze)')
+    parser.add_argument('--inverted', dest='inverted', type=int, default=0, required=False)
+    parser.add_argument('--binary', dest='binary', type=int, default=0, required=False)
     args = parser.parse_args()
 
     for dirname in ['checkpoints', 'logs']:
@@ -319,7 +325,9 @@ def main():
             lr=args.lr,
             weight_decay=args.weight_decay,
             max_epochs=args.max_epochs,
-            flipped=args.flipped
+            flipped=args.flipped,
+            is_inverted=args.inverted==1,
+            is_binary=args.binary==1
         )
 
 if __name__ == "__main__":
