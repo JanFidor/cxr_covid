@@ -85,6 +85,9 @@ def get_transforms(name, abstract_intensity = None):
         if abstract_intensity == 'strong-forced': 
             intensity = 0.25
             right = 0.15
+        if abstract_intensity == 'extreme-forced': 
+            intensity = 0.25
+            right = 0.1 
 
         return v2.Compose([
             v2.Lambda(lambda x: denormalize(x)),
@@ -220,6 +223,12 @@ AUGMENTATION_SETUP = {
         get_transforms('crop', 'strong-forced'),
         get_transforms('affine', 'extreme'),
         get_transforms('color', 'strong'),
+        get_transforms('flip'),
+    ], 1),
+    "extreme_random_crop-affine": random_compose([
+        get_transforms('crop', 'extreme-forced'),
+        get_transforms('affine', 'strong'),
+        get_transforms('color', 'medium'),
         get_transforms('flip'),
     ], 1),
 }
