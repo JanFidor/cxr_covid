@@ -10,6 +10,7 @@ import torchvision
 
 from datasets import *
 import sklearn
+import sklearn.metrics
 import torchxrayvision as xrv
 
 
@@ -351,6 +352,9 @@ class CXRClassifier(object):
         loss = 0
         logged_per_class = {}
         
+        aggregated_preds = []
+        aggregated_labels = []
+        
         for i, batch in enumerate(tqdm(train_dataloader, leave=False)):
             inputs, labels, _, _ = batch
             # batch size may differ from batch_size for the last  
@@ -371,6 +375,9 @@ class CXRClassifier(object):
 
             covid_labels = labels.to(torch.int)[:,-1]
             predictions = (outputs[:,-1] > 0).int()  # Convert logits to predictions
+            aggregated_preds.extend(predictions.cpu().detach().numpy())
+            aggregated_labels.extend(covid_labels.cpu().detach().numpy())
+
             auroc.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
 
             precision.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
@@ -391,15 +398,19 @@ class CXRClassifier(object):
             log_metrics("train", epoch, step_loss, None)
 
             self.log_images("train", inputs, covid_labels, logged_per_class, epoch)
-        if epoch != -1:
-            logdict = {
-                "precision": precision.compute().item(),
-                "recall": recall.compute().item(),
-                "f1": f1.compute().item(),
-                "auroc": auroc.compute().item()
-            }
-            log_metrics("train", epoch, step_loss, logdict)
-            log_confusion_matrix("train", epoch, confmat.compute().numpy())
+        if epoch == -1: return loss
+        
+        logdict = {
+            "precision": precision.compute().item(),
+            "recall": recall.compute().item(),
+            "f1": f1.compute().item(),
+            "auroc": auroc.compute().item()
+        }
+        for name, metric in self.metrics_weighted().items():
+            logdict[name] = metric(aggregated_labels, aggregated_preds)
+
+        log_metrics("train", epoch, step_loss, logdict)
+        log_confusion_matrix("train", epoch, confmat.compute().numpy())
             
         return loss
 
@@ -413,6 +424,8 @@ class CXRClassifier(object):
         
         loss = 0
         logged_per_class = {}
+        aggregated_preds = []
+        aggregated_labels = []
         for i, batch in enumerate(tqdm(val_dataloader, leave=False)):
             inputs, labels, _, _ = batch
             # batch size may differ from batch_size for the last  
@@ -430,6 +443,10 @@ class CXRClassifier(object):
 
             covid_labels = labels.to(torch.int)[:,-1]
             predictions = (outputs[:,-1] > 0).int()  # Convert logits to predictions
+
+            aggregated_preds.extend(predictions.cpu().detach().numpy())
+            aggregated_labels.extend(covid_labels.cpu().detach().numpy())
+
             auroc.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
             
             precision.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
@@ -451,9 +468,22 @@ class CXRClassifier(object):
             "f1": f1.compute().item(),
             "auroc": auroc.compute().item()
         }
+
+        for name, metric in self.metrics_weighted().items():
+            logdict[name] = metric(aggregated_labels, aggregated_preds)
+
         log_metrics("val", epoch, step_loss, logdict)
         log_confusion_matrix("val", epoch, confmat.compute().numpy())
         return loss, auroc.compute().item()
+    
+    def metrics_weighted(self):
+        return{
+        "f1-weighted": lambda y_true, y_pred: sklearn.metrics.f1_score(y_true, y_pred, average='weighted'),
+        "precision-weighted": lambda y_true, y_pred: sklearn.metrics.precision_score(y_true, y_pred, average='weighted'),
+        "recall-weighted": lambda y_true, y_pred: sklearn.metrics.recall_score(y_true, y_pred, average='weighted'),
+        "accuracy": sklearn.metrics.accuracy_score,
+        "accuracy_balanced": sklearn.metrics.balanced_accuracy_score,
+    }
 
     def checkpoint(self, suffix=None):
         '''

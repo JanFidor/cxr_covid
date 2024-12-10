@@ -191,6 +191,9 @@ def evaluate_dataset_1(
         shuffle=False,
         num_workers=1
     )
+
+    aggregated_preds = []
+    aggregated_labels = []
     
     # Initialize metrics
     auroc = AUROC('binary').cpu()
@@ -210,29 +213,44 @@ def evaluate_dataset_1(
             
             # Only keep COVID predictions (last column)
             covid_outputs = outputs[:, -1].detach().cpu()
-            covid_labels = labels[:, -1].detach().cpu()
+            covid_labels = labels[:, -1].detach().cpu().int()
+            predictions = (covid_outputs > 0).int()
+
+            aggregated_preds.extend(predictions.numpy())
+            aggregated_labels.extend(covid_labels.numpy())
             
             # Update metrics
-            auroc.update(covid_outputs, covid_labels.int())
-            predictions = (covid_outputs > 0).int()  # Convert logits to predictions
-            precision.update(predictions, covid_labels.int())
-            recall.update(predictions, covid_labels.int())
-            f1.update(predictions, covid_labels.int())
-            confmat.update(predictions, covid_labels.int())
+            auroc.update(covid_outputs, covid_labels)
+            precision.update(predictions, covid_labels)
+            recall.update(predictions, covid_labels)
+            f1.update(predictions, covid_labels)
+            confmat.update(predictions, covid_labels)
             
     _auroc = float(auroc.compute().cpu())
     _precision = float(precision.compute().cpu())
     _recall = float(recall.compute().cpu())
     _f1 = float(f1.compute().cpu())
-    name=f"test_{'best_auroc' if is_best else 'last'}"
+    model_name=f"test_{'best_auroc' if is_best else 'last'}"
     log_dict = {
-        f"auroc/{name}": _auroc, f"precision/{name}": _precision, f"recall/{name}": _recall, f"f1/{name}": _f1}
+        f"auroc/{model_name}": _auroc, f"precision-binary/{model_name}": _precision, f"recall-binary/{model_name}": _recall, f"f1-binary/{model_name}": _f1}
     if epoch is not None:
         log_dict[f"epoch"] = epoch
+
+    for metric_name, metric in metrics_weighted().items():
+        log_dict[f"{metric_name}/{model_name}"] = metric(aggregated_labels, aggregated_preds)
     wandb.log(log_dict)
     
     # Log confusion matrix
     log_confusion_matrix("test_ood", epoch, confmat.compute().cpu().numpy())
+
+def metrics_weighted():
+    return {
+    "f1-weighted": lambda y_true, y_pred: sklearn.metrics.f1_score(y_true, y_pred, average='weighted'),
+    "precision-weighted": lambda y_true, y_pred: sklearn.metrics.precision_score(y_true, y_pred, average='weighted'),
+    "recall-weighted": lambda y_true, y_pred: sklearn.metrics.recall_score(y_true, y_pred, average='weighted'),
+    "accuracy": sklearn.metrics.accuracy_score,
+    "accuracy_balanced": sklearn.metrics.balanced_accuracy_score,
+}
 
 def main():
     parser = argparse.ArgumentParser(description='Training script for COVID-19 '
