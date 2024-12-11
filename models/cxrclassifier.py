@@ -366,8 +366,8 @@ class CXRClassifier(object):
             if self.is_cut:
                 inputs = inputs[:, :1, :, :]
             inputs = inputs.cuda()
-            labels = labels.cuda().float()[:, -1:]
-            outputs = self.model(inputs)[:, -1:]
+            labels = labels.cuda().float()
+            outputs = self.model(inputs)
 
             # Calculate the loss
             self.optimizer.zero_grad()
