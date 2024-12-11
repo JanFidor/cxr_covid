@@ -136,10 +136,7 @@ def train_dataset_3(
     is_inverted=False,
     is_binary=False
 ):
-    msks = [0] * 14
-    msks[4] = 1
-    msks[5] = 1
-    msks = torch.tensor(msks)
+    msks = None
 
     trainds = load_dataset_3(seed, is_train=True, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name, flipped=flipped, masks=msks, is_inverted=is_inverted, is_binary=is_binary)
     valds = load_dataset_3(seed, is_train=False, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name, masks=msks, is_inverted=is_inverted, is_binary=is_binary)
@@ -208,17 +205,12 @@ def evaluate_dataset_1(
         for batch in tqdm(dl, leave=False):
             inputs, labels, _, _ = batch
             if is_cut:
-                try:
-                    inputs = denormalize(inputs)
-                    inputs = inputs[:, :1, :, :]
-                    inputs = torch.tensor(xrv.datasets.normalize(inputs.numpy(), 1)).cuda() # convert 8-bit image to [-1024, 1024] range
-                except:
-                    inputs = denormalize(inputs)
-                    inputs = inputs[:, :1, :, :]
-                    mn, mx = inputs.amin(dim=[1, 2, 3]), inputs.amax(dim=[1, 2, 3])
-                    inputs = (inputs.permute(1, 2, 3, 0) - mn) / (mx - mn)
-                    inputs = inputs.permute(3, 0, 1, 2)
-                    inputs = torch.tensor(xrv.datasets.normalize(inputs.numpy(), 1)).cuda()
+                inputs = denormalize(inputs)
+                inputs = inputs[:, :1, :, :]
+                mn, mx = inputs.amin(dim=[1, 2, 3]), inputs.amax(dim=[1, 2, 3])
+                inputs = (inputs.permute(1, 2, 3, 0) - mn) / (mx - mn)
+                inputs = (2 * inputs - 1.) * 1024
+                inputs = inputs.permute(3, 0, 1, 2)
             inputs = inputs.cuda()
             labels = labels.cuda()
             outputs = model(inputs)

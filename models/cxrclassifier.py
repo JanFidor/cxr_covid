@@ -366,17 +366,12 @@ class CXRClassifier(object):
             # Transfer inputs (images) and labels (arrays of ints) to 
             # GPU
             if self.is_cut:
-                try:
-                    inputs = denormalize(inputs)
-                    inputs = inputs[:, :1, :, :]
-                    inputs = torch.tensor(xrv.datasets.normalize(inputs.numpy(), 1)).cuda() # convert 8-bit image to [-1024, 1024] range
-                except:
-                    inputs = denormalize(inputs)
-                    inputs = inputs[:, :1, :, :]
-                    mn, mx = inputs.amin(dim=[1, 2, 3]), inputs.amax(dim=[1, 2, 3])
-                    inputs = (inputs.permute(1, 2, 3, 0) - mn) / (mx - mn)
-                    inputs = inputs.permute(3, 0, 1, 2)
-                    inputs = torch.tensor(xrv.datasets.normalize(inputs.numpy(), 1)).cuda()
+                inputs = denormalize(inputs)
+                inputs = inputs[:, :1, :, :]
+                mn, mx = inputs.amin(dim=[1, 2, 3]), inputs.amax(dim=[1, 2, 3])
+                inputs = (inputs.permute(1, 2, 3, 0) - mn) / (mx - mn)
+                inputs = (2 * inputs - 1.) * 1024
+                inputs = inputs.permute(3, 0, 1, 2)
             inputs = inputs.cuda()
             labels = labels.cuda().float()[:, -1:]
             outputs = self.model(inputs)[:, -1:]
@@ -447,17 +442,12 @@ class CXRClassifier(object):
             # Transfer inputs (images) and labels (arrays of ints) to 
             # GPU
             if self.is_cut:
-                try:
-                    inputs = denormalize(inputs)
-                    inputs = inputs[:, :1, :, :]
-                    inputs = torch.tensor(xrv.datasets.normalize(inputs.numpy(), 1)).cuda() # convert 8-bit image to [-1024, 1024] range
-                except:
-                    inputs = denormalize(inputs)
-                    inputs = inputs[:, :1, :, :]
-                    mn, mx = inputs.amin(dim=[1, 2, 3]), inputs.amax(dim=[1, 2, 3])
-                    inputs = (inputs.permute(1, 2, 3, 0) - mn) / (mx - mn)
-                    inputs = inputs.permute(3, 0, 1, 2)
-                    inputs = torch.tensor(xrv.datasets.normalize(inputs.numpy(), 1)).cuda()
+                inputs = denormalize(inputs)
+                inputs = inputs[:, :1, :, :]
+                mn, mx = inputs.amin(dim=[1, 2, 3]), inputs.amax(dim=[1, 2, 3])
+                inputs = (inputs.permute(1, 2, 3, 0) - mn) / (mx - mn)
+                inputs = (2 * inputs - 1.) * 1024
+                inputs = inputs.permute(3, 0, 1, 2)
             inputs = inputs.cuda()
             
             labels = labels.cuda().float()
