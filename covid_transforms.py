@@ -38,16 +38,11 @@ class RandomCenterCrop(nn.Module):
         # Center crop
         cropped = F.center_crop(img, [new_h, new_w])
         
-        # Calculate padding
-        pad_h = (orig_h - new_h) // 2
-        pad_w = (orig_w - new_w) // 2
-        
         # Pad back to original size with normalized black
         cropped = denormalize(cropped)
-        padded = F.pad(cropped, 
-                    [pad_w, pad_w, pad_h, pad_h], 
-                    fill=0)
-        return v2.Normalize(MEAN, STD)(padded)
+        padded = SpatialPad(spatial_size=(224, 224), mode="constant", constant_values=0)(cropped)
+        normal = v2.Normalize(MEAN, STD)(padded)
+        return normal
 
     def __repr__(self):
         return f"{self.__class__.__name__}(min_scale={self.min_scale}, max_scale={self.max_scale})" 
