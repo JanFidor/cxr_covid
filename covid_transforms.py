@@ -222,7 +222,7 @@ AUGMENTATION_SETUP = {
     ], 1),
     "extreme_random_crop-affine": random_compose([
         get_transforms('center_crop', 'extreme-forced'),
-        get_transforms('affine', 'strong'),
+        get_transforms('affine', 'weak'),
         get_transforms('color', 'medium'),
         get_transforms('flip'),
     ], 1),
