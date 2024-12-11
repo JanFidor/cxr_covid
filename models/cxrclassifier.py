@@ -25,10 +25,12 @@ from torchmetrics import AUROC, Precision, Recall, F1Score
 from pytorch_grad_cam import GradCAM, EigenCAM, GradCAMPlusPlus, EigenGradCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
+from torchvision.models import DenseNet
 import random
 from torchmetrics import ConfusionMatrix
 import seaborn as sns
 import matplotlib.pyplot as plt
+from utils import denormalize
 
 mean = [0.485, 0.456, 0.406]
 std = [0.229, 0.224, 0.225]
@@ -364,7 +366,17 @@ class CXRClassifier(object):
             # Transfer inputs (images) and labels (arrays of ints) to 
             # GPU
             if self.is_cut:
-                inputs = inputs[:, :1, :, :]
+                try:
+                    inputs = denormalize(inputs)
+                    inputs = inputs[:, :1, :, :]
+                    inputs = torch.tensor(xrv.datasets.normalize(inputs.numpy(), 1)).cuda() # convert 8-bit image to [-1024, 1024] range
+                except:
+                    inputs = denormalize(inputs)
+                    inputs = inputs[:, :1, :, :]
+                    mn, mx = inputs.amin(dim=[1, 2, 3]), inputs.amax(dim=[1, 2, 3])
+                    inputs = (inputs.permute(1, 2, 3, 0) - mn) / (mx - mn)
+                    inputs = inputs.permute(3, 0, 1, 2)
+                    inputs = torch.tensor(xrv.datasets.normalize(inputs.numpy(), 1)).cuda()
             inputs = inputs.cuda()
             labels = labels.cuda().float()[:, -1:]
             outputs = self.model(inputs)[:, -1:]
@@ -435,7 +447,17 @@ class CXRClassifier(object):
             # Transfer inputs (images) and labels (arrays of ints) to 
             # GPU
             if self.is_cut:
-                inputs = inputs[:, :1, :, :]
+                try:
+                    inputs = denormalize(inputs)
+                    inputs = inputs[:, :1, :, :]
+                    inputs = torch.tensor(xrv.datasets.normalize(inputs.numpy(), 1)).cuda() # convert 8-bit image to [-1024, 1024] range
+                except:
+                    inputs = denormalize(inputs)
+                    inputs = inputs[:, :1, :, :]
+                    mn, mx = inputs.amin(dim=[1, 2, 3]), inputs.amax(dim=[1, 2, 3])
+                    inputs = (inputs.permute(1, 2, 3, 0) - mn) / (mx - mn)
+                    inputs = inputs.permute(3, 0, 1, 2)
+                    inputs = torch.tensor(xrv.datasets.normalize(inputs.numpy(), 1)).cuda()
             inputs = inputs.cuda()
             
             labels = labels.cuda().float()
@@ -566,6 +588,35 @@ class CXRClassifier(object):
                     output[batch_size*ibatch + isample, ilabel] = \
                         probs[isample, ilabel]
         return output
+
+def get_gradcam(gradcam_name, model_path):
+    model = load_model(model_path)
+    gradcam_layers = get_gradcam_layers(model)
+
+    return {
+        "grad_cam": GradCAM(model=model, target_layers=gradcam_layers),
+        "grad++_cam": GradCAMPlusPlus(model=model, target_layers=gradcam_layers),
+        "eigen_cam": EigenCAM(model=model, target_layers=gradcam_layers),
+        "eigengrad_cam": EigenGradCAM(model=model, target_layers=gradcam_layers),
+    }.get(gradcam_name)
+
+
+def get_gradcam_layers(model):
+    if isinstance(model, AlexNet):
+        return [model.features[-3]]
+    elif isinstance(model, DenseNet):
+        return [model.features[-2].denselayer16.conv2]
+    raise KeyError
+
+def load_model(model_path, model_name="densenet121-pretrain", n_labels=15):
+    model = CXRClassifier()
+    if model_name == 'alexnet':
+        model.build_model_scratch(n_labels)
+    else:
+        pretrained = model_name == 'logistic' or model_name.split("-")[1] == 'pretrain'
+        model.build_model(n_labels, pretrained)
+    model.load_checkpoint(model_path)
+    return model.model
 
 def log_confusion_matrix(stage, epoch, conf_matrix):
     # Create figure and plot confusion matrix

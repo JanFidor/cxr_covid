@@ -37,6 +37,8 @@ import wandb
 from torchmetrics import AUROC, Precision, Recall, F1Score
 from tqdm import tqdm
 from torchmetrics.classification.confusion_matrix import ConfusionMatrix
+from utils import denormalize
+import torchxrayvision as xrv
 
 MAX_BATCH=256
 
@@ -206,7 +208,17 @@ def evaluate_dataset_1(
         for batch in tqdm(dl, leave=False):
             inputs, labels, _, _ = batch
             if is_cut:
-                inputs = inputs[:, :1, :, :]
+                try:
+                    inputs = denormalize(inputs)
+                    inputs = inputs[:, :1, :, :]
+                    inputs = torch.tensor(xrv.datasets.normalize(inputs.numpy(), 1)).cuda() # convert 8-bit image to [-1024, 1024] range
+                except:
+                    inputs = denormalize(inputs)
+                    inputs = inputs[:, :1, :, :]
+                    mn, mx = inputs.amin(dim=[1, 2, 3]), inputs.amax(dim=[1, 2, 3])
+                    inputs = (inputs.permute(1, 2, 3, 0) - mn) / (mx - mn)
+                    inputs = inputs.permute(3, 0, 1, 2)
+                    inputs = torch.tensor(xrv.datasets.normalize(inputs.numpy(), 1)).cuda()
             inputs = inputs.cuda()
             labels = labels.cuda()
             outputs = model(inputs)

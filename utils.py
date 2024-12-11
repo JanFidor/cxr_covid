@@ -1,12 +1,9 @@
 from torchvision.transforms import v2
 import torchvision.transforms.functional as F
-from torchvision.models.densenet import DenseNet
 import torch
 import numpy as np
 import math
 
-from models.cxrclassifier import AlexNet, CXRClassifier
-from pytorch_grad_cam import GradCAM, EigenCAM, GradCAMPlusPlus, EigenGradCAM
 from covid_transforms import AUGMENTATION_SETUP
 
 
@@ -71,13 +68,25 @@ def get_train_augmentations(name):
         "none": v2.Identity()
     }[name]
 
-def denormalize(x):
+def denormalize(x: torch.Tensor):
+    is_batched = len(x.shape) == 4
+
     _mean = torch.tensor(MEAN)
     _std = torch.tensor(STD)
     
-    x = x.permute(1, 2, 0)
+    if is_batched:
+        x = x.permute(0, 2, 3, 1)
+    else:
+        x = x.permute(1, 2, 0)
+
     x = _std * x + _mean
-    return x.permute(2, 0, 1)
+
+    if is_batched:
+        x = x.permute(0, 3, 1, 2)
+    else:
+        x = x.permute(2, 0, 1)
+
+    return x
 
 #color-0.5|rot-10|flip-0.5
 def get_augmentations(name):
@@ -148,37 +157,6 @@ def outer_crop(tensor, intensity):
     tensor = tensor.permute(ord1)
     tensor[border:224-border, border:224-border] =  torch.tensor(NORMALIZED_BLACK)
     return tensor.permute(ord2)
-
-
-def get_gradcam(gradcam_name, model_path):
-    model = load_model(model_path)
-    gradcam_layers = get_gradcam_layers(model)
-
-    return {
-        "grad_cam": GradCAM(model=model, target_layers=gradcam_layers),
-        "grad++_cam": GradCAMPlusPlus(model=model, target_layers=gradcam_layers),
-        "eigen_cam": EigenCAM(model=model, target_layers=gradcam_layers),
-        "eigengrad_cam": EigenGradCAM(model=model, target_layers=gradcam_layers),
-    }.get(gradcam_name)
-
-
-def get_gradcam_layers(model):
-    if isinstance(model, AlexNet):
-        return [model.features[-3]]
-    elif isinstance(model, DenseNet):
-        return [model.features[-2].denselayer16.conv2]
-    raise KeyError
-
-
-def load_model(model_path, model_name="densenet121-pretrain", n_labels=15):
-    model = CXRClassifier()
-    if model_name == 'alexnet':
-        model.build_model_scratch(n_labels)
-    else:
-        pretrained = model_name == 'logistic' or model_name.split("-")[1] == 'pretrain'
-        model.build_model(n_labels, pretrained)
-    model.load_checkpoint(model_path)
-    return model.model
 
 
 def denormalize_image(image):
