@@ -408,9 +408,9 @@ class CXRClassifier(object):
         if epoch == -1: return loss
         
         logdict = {
-            "precision": precision.compute().item(),
-            "recall": recall.compute().item(),
-            "f1": f1.compute().item(),
+            "precision-binary": precision.compute().item(),
+            "recall-binary": recall.compute().item(),
+            "f1-binary": f1.compute().item(),
             "auroc": auroc.compute().item()
         }
         for name, metric in self.metrics_weighted().items():
@@ -475,9 +475,9 @@ class CXRClassifier(object):
             self.log_images("val", inputs, covid_labels, logged_per_class, epoch)
                 
         logdict = {
-            "precision": precision.compute().item(),
-            "recall": recall.compute().item(),
-            "f1": f1.compute().item(),
+            "precision-binary": precision.compute().item(),
+            "recall-binary": recall.compute().item(),
+            "f1-binary": f1.compute().item(),
             "auroc": auroc.compute().item()
         }
 
