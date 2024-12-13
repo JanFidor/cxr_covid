@@ -37,6 +37,8 @@ import wandb
 from torchmetrics import AUROC, Precision, Recall, F1Score
 from tqdm import tqdm
 from torchmetrics.classification.confusion_matrix import ConfusionMatrix
+from utils import denormalize
+import torchxrayvision as xrv
 
 MAX_BATCH=256
 
@@ -87,6 +89,9 @@ def train_dataset_2(
     lr=0.01,
     weight_decay=1e-4,
     max_epochs=30,
+    flipped=0,
+    is_inverted=False,
+    is_binary=False
 ):
     trainds = load_dataset_2(seed, is_train=True, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
     valds = load_dataset_2(seed, is_train=False, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
@@ -113,9 +118,15 @@ def train_dataset_2(
         freeze_features=freeze_features,
     )
 
-    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, epoch=max_epochs)
-
     wandb.save(f"{checkpointpath}*", base_path=checkpointdir)
+
+    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=False, is_cut=classifier.is_cut)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, None, max_epochs, is_best=False, is_cut=classifier.is_cut, )
+    bestpath = f"{checkpointpath}.best_auroc"
+    classifier.load_checkpoint(bestpath)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=True, is_cut=classifier.is_cut)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, None, max_epochs, is_best=True, is_cut=classifier.is_cut)
+    
 
 def train_dataset_3(
     experiment_name,
@@ -134,10 +145,7 @@ def train_dataset_3(
     is_inverted=False,
     is_binary=False
 ):
-    msks = [0] * 14
-    msks[4] = 1
-    msks[5] = 1
-    msks = torch.tensor(msks)
+    msks = None
 
     trainds = load_dataset_3(seed, is_train=True, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name, flipped=flipped, masks=msks, is_inverted=is_inverted, is_binary=is_binary)
     valds = load_dataset_3(seed, is_train=False, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name, masks=msks, is_inverted=is_inverted, is_binary=is_binary)
@@ -164,12 +172,15 @@ def train_dataset_3(
         freeze_features=freeze_features,
     )
 
-    evaluate_dataset_1(seed, classifier.model, preprocessing, None, max_epochs, is_best=False, is_cut=classifier.is_cut)
+    wandb.save(f"{checkpointpath}*", base_path=checkpointdir)
+
+    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=False, is_cut=classifier.is_cut)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, None, max_epochs, is_best=False, is_cut=classifier.is_cut, )
     bestpath = f"{checkpointpath}.best_auroc"
     classifier.load_checkpoint(bestpath)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=True, is_cut=classifier.is_cut)
     evaluate_dataset_1(seed, classifier.model, preprocessing, None, max_epochs, is_best=True, is_cut=classifier.is_cut)
-
-    wandb.save(f"{checkpointpath}*", base_path=checkpointdir)
+    
 
 def evaluate_dataset_1(
     seed,
@@ -203,7 +214,12 @@ def evaluate_dataset_1(
         for batch in tqdm(dl, leave=False):
             inputs, labels, _, _ = batch
             if is_cut:
+                inputs = denormalize(inputs)
                 inputs = inputs[:, :1, :, :]
+                mn, mx = inputs.amin(dim=[1, 2, 3]), inputs.amax(dim=[1, 2, 3])
+                inputs = (inputs.permute(1, 2, 3, 0) - mn) / (mx - mn)
+                inputs = (2 * inputs - 1.) * 1024
+                inputs = inputs.permute(3, 0, 1, 2)
             inputs = inputs.cuda()
             labels = labels.cuda()
             outputs = model(inputs)
@@ -227,7 +243,7 @@ def evaluate_dataset_1(
     _precision = float(precision.compute().cpu())
     _recall = float(recall.compute().cpu())
     _f1 = float(f1.compute().cpu())
-    model_name=f"test_{'best_auroc' if is_best else 'last'}"
+    model_name=f"test_{'full' if split_name is None else 'balanced'}/{'best_auroc' if is_best else 'last'}"
     log_dict = {
         f"auroc/{model_name}": _auroc, f"precision-binary/{model_name}": _precision, f"recall-binary/{model_name}": _recall, f"f1-binary/{model_name}": _f1}
     if epoch is not None:
@@ -238,7 +254,7 @@ def evaluate_dataset_1(
     wandb.log(log_dict)
     
     # Log confusion matrix
-    log_confusion_matrix("test_ood", epoch, confmat.compute().cpu().numpy())
+    log_confusion_matrix(model_name, epoch, confmat.compute().cpu().numpy())
 
 def metrics_weighted():
     return {
@@ -312,7 +328,7 @@ def main():
             split_name=args.split
         )
     if args.dataset == 2:
-        train_dataset_3(
+        train_dataset_2(
             args.experiment,
             args.seed, 
             model_name=args.network, 
@@ -325,6 +341,9 @@ def main():
             lr=args.lr,
             weight_decay=args.weight_decay,
             max_epochs=args.max_epochs,
+            flipped=args.flipped,
+            is_inverted=args.inverted==1,
+            is_binary=args.binary==1
         )
     if args.dataset == 3:
         train_dataset_3(
