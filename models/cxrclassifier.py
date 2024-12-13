@@ -121,7 +121,8 @@ class CXRClassifier(object):
         Create a classifier for chest radiograph pathology.
         '''
         self.n_logged = n_logged
-        self.lossfunc = torch.nn.BCEWithLogitsLoss()
+
+        self.lossfunc = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([2.0]).cuda())
 
         self.g = torch.Generator()
         self.g.manual_seed(seed)
@@ -397,6 +398,7 @@ class CXRClassifier(object):
             batch_loss.backward()
             # Update the running sum of the loss
             step_loss = batch_loss.data.item()
+            loss += step_loss*current_batch_size
 
             if epoch == -1: break
             if epoch > 0:
