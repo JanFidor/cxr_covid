@@ -135,16 +135,17 @@ def load_dataset_1(
     train_transforms = v2.Identity()
     if fold == 'train':
         train_transforms = combined_transforms
-    elif fold == 'val':
+    else:
         train_transforms = preprocessing
 
-    neg = ChestXray14Dataset(fold='train', augments=train_transforms, labels='chestx-ray14', random_state=seed)
-    pos = GitHubCOVIDDataset(fold='train', augments=train_transforms, labels='chestx-ray14', random_state=seed)
+    neg = ChestXray14Dataset(fold=fold, augments=train_transforms, labels='chestx-ray14', random_state=seed)
+    pos = GitHubCOVIDDataset(fold=fold, augments=train_transforms, labels='chestx-ray14', random_state=seed)
     
-    split_dir = f"splits/{split_name}/dataset1"
-    neg.df = pd.read_csv(f"{split_dir}/chestxray-{fold}.csv", index_col=0)
-    neg.meta_df = pd.read_csv(f"{split_dir}/chestxray-{fold}meta.csv", index_col=0)
-    pos.df = pd.read_csv(f"{split_dir}/githubcovid-{fold}.csv", index_col="filename")
+    if split_name:
+        split_dir = f"splits/{split_name}/dataset1"
+        neg.df = pd.read_csv(f"{split_dir}/chestxray-{fold}.csv", index_col=0)
+        neg.meta_df = pd.read_csv(f"{split_dir}/chestxray-{fold}meta.csv", index_col=0)
+        pos.df = pd.read_csv(f"{split_dir}/githubcovid-{fold}.csv", index_col="filename")
 
     if masks is not None:
         neg = MaskedDataset(neg, fold, masks, is_inverted, is_binary)
