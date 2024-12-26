@@ -377,13 +377,14 @@ class CXRClassifier(object):
             predictions = (outputs[:,-1] > 0).int()  # Convert logits to predictions
             aggregated_preds.extend(predictions.cpu().detach().numpy())
             aggregated_labels.extend(covid_labels.cpu().detach().numpy())
+            probs = torch.nn.functional.sigmoid(outputs[:,-1]).detach().cpu()
 
-            auroc.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
+            auroc.update(probs, covid_labels.detach().cpu())
 
-            precision.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
-            recall.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
-            f1.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
-            confmat.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
+            precision.update(probs, covid_labels.detach().cpu())
+            recall.update(probs, covid_labels.detach().cpu())
+            f1.update(probs, covid_labels.detach().cpu())
+            confmat.update(probs, covid_labels.detach().cpu())
             
             # update the network's weights
             
@@ -443,16 +444,16 @@ class CXRClassifier(object):
 
             covid_labels = labels.to(torch.int)[:,-1]
             predictions = (outputs[:,-1] > 0).int()  # Convert logits to predictions
-
             aggregated_preds.extend(predictions.cpu().detach().numpy())
             aggregated_labels.extend(covid_labels.cpu().detach().numpy())
+            probs = torch.nn.functional.sigmoid(outputs[:,-1]).detach().cpu()
 
-            auroc.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
-            
-            precision.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
-            recall.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
-            f1.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
-            confmat.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
+            auroc.update(probs, covid_labels.detach().cpu())
+
+            precision.update(probs, covid_labels.detach().cpu())
+            recall.update(probs, covid_labels.detach().cpu())
+            f1.update(probs, covid_labels.detach().cpu())
+            confmat.update(probs, covid_labels.detach().cpu())
             # Calculate the loss
             batch_loss = self.lossfunc(outputs, labels)
 

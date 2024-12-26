@@ -21,14 +21,6 @@ import random
 import numpy as np
 
 from models import CXRClassifier
-from datasets import (
-    GitHubCOVIDDataset,
-    BIMCVCOVIDDataset,
-    ChestXray14Dataset,
-    PadChestDataset,
-    BIMCVNegativeDataset, 
-    DomainConfoundedDataset
-)
 from models.cxrclassifier import log_confusion_matrix
 from load_data import load_dataset_1, load_dataset_2, load_dataset_3
 from logger import initialize_wandb
@@ -227,13 +219,14 @@ def evaluate_dataset_1(
             # Only keep COVID predictions (last column)
             covid_outputs = outputs[:, -1].detach().cpu()
             covid_labels = labels[:, -1].detach().cpu().int()
+            probs = torch.nn.functional.sigmoid(covid_outputs)
             predictions = (covid_outputs > 0).int()
 
             aggregated_preds.extend(predictions.numpy())
             aggregated_labels.extend(covid_labels.numpy())
             
             # Update metrics
-            auroc.update(covid_outputs, covid_labels)
+            auroc.update(probs, covid_labels)
             precision.update(predictions, covid_labels)
             recall.update(predictions, covid_labels)
             f1.update(predictions, covid_labels)
