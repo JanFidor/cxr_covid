@@ -163,12 +163,15 @@ def train_dataset_3(
         freeze_features=freeze_features,
     )
 
-    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=False, is_cut=classifier.is_cut, masks=msks, is_inverted=is_inverted, is_binary=is_binary)
+    wandb.save(f"{checkpointpath}*", base_path=checkpointdir)
+
+    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=False, is_cut=classifier.is_cut)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, None, max_epochs, is_best=False, is_cut=classifier.is_cut, )
     bestpath = f"{checkpointpath}.best_auroc"
     classifier.load_checkpoint(bestpath)
-    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=True, is_cut=classifier.is_cut, masks=msks, is_inverted=is_inverted, is_binary=is_binary)
-
-    wandb.save(f"{checkpointpath}*", base_path=checkpointdir)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=True, is_cut=classifier.is_cut)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, None, max_epochs, is_best=True, is_cut=classifier.is_cut)
+    
 
 def evaluate_dataset_1(
     seed,
@@ -180,7 +183,7 @@ def evaluate_dataset_1(
     is_cut=False,
     masks=None,
     is_inverted=False,
-    is_binary=False
+    is_binary=False,
 ):  
     model.eval()
     ds = load_dataset_1(seed, fold='test', preprocessing=preprocessing, split_name=split_name, masks=masks, is_inverted=is_inverted, is_binary=is_binary)
@@ -234,7 +237,7 @@ def evaluate_dataset_1(
     _precision = float(precision.compute().cpu())
     _recall = float(recall.compute().cpu())
     _f1 = float(f1.compute().cpu())
-    model_name=f"test_{'best_auroc' if is_best else 'last'}"
+    model_name=f"test_{'full' if split_name is None else 'balanced'}/{'best_auroc' if is_best else 'last'}"
     log_dict = {
         f"auroc/{model_name}": _auroc, f"precision-binary/{model_name}": _precision, f"recall-binary/{model_name}": _recall, f"f1-binary/{model_name}": _f1}
     if epoch is not None:
@@ -245,7 +248,7 @@ def evaluate_dataset_1(
     wandb.log(log_dict)
     
     # Log confusion matrix
-    log_confusion_matrix("test_ood", epoch, confmat.compute().cpu().numpy())
+    log_confusion_matrix(model_name, epoch, confmat.compute().cpu().numpy())
 
 def metrics_weighted():
     return {
@@ -319,7 +322,7 @@ def main():
             split_name=args.split
         )
     if args.dataset == 2:
-        train_dataset_3(
+        train_dataset_2(
             args.experiment,
             args.seed, 
             model_name=args.network, 
