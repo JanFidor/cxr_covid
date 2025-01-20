@@ -343,7 +343,7 @@ def main():
             flipped=args.flipped,
             is_inverted=args.inverted==1,
             is_binary=args.binary==1,
-            checkpoint=args.checkpoint if args.checkpoint != "none" else None
+            starting_checkpoint=args.checkpoint if args.checkpoint != "none" else None
         )
     if args.dataset == 3:
         train_dataset_3(
@@ -362,7 +362,7 @@ def main():
             flipped=args.flipped,
             is_inverted=args.inverted==1,
             is_binary=args.binary==1,
-            checkpoint=args.checkpoint if args.checkpoint != "none" else None
+            starting_checkpoint=args.checkpoint if args.checkpoint != "none" else None
         )
 
 if __name__ == "__main__":
