@@ -195,7 +195,8 @@ class CXRClassifier(object):
               checkpoint_path='checkpoint.pkl',
               verbose=True,
               model_name=False,
-              freeze_features=False):
+              freeze_features=False,
+              starting_checkpoint=None):
         '''
         Train the classifier to predict the labels in the specified dataset.
         Training will start from the weights in a densenet-121 model pretrained
@@ -225,6 +226,7 @@ class CXRClassifier(object):
         self.checkpoint_path = checkpoint_path
         self.lr = lr
         self.weight_decay = weight_decay
+        self.starting_checkpoint = starting_checkpoint
         
         # Create torch DataLoaders from the training and validation datasets.
         # Necessary for batching and shuffling data.
@@ -232,7 +234,7 @@ class CXRClassifier(object):
             train_dataset,
             batch_size=batch_size,
             shuffle=True,
-            num_workers=1,
+            num_workers=0,
             worker_init_fn=seed_worker,
             generator=self.g,
         )
@@ -240,7 +242,7 @@ class CXRClassifier(object):
                 val_dataset,
                 batch_size=batch_size,
                 shuffle=False,
-                num_workers=1,
+                num_workers=0,
             worker_init_fn=seed_worker,
             generator=self.g,
         )
@@ -259,6 +261,9 @@ class CXRClassifier(object):
             self.medical_model(len(train_dataset.labels), dataset)
         else:
             raise ValueError(f"Model {model_name} not found")
+
+        if self.starting_checkpoint is not None:
+            self.load_checkpoint(self.starting_checkpoint, load_optimizer=False)
 
         # Freeze weights if desired
         if freeze_features:
@@ -535,7 +540,7 @@ class CXRClassifier(object):
             dataset,
             batch_size=batch_size,
             shuffle=False,
-            num_workers=1,
+            num_workers=0,
             worker_init_fn=seed_worker,
             generator=self.g,
         )

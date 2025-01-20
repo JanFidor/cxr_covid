@@ -83,7 +83,8 @@ def train_dataset_2(
     max_epochs=30,
     flipped=0,
     is_inverted=False,
-    is_binary=False
+    is_binary=False,
+    starting_checkpoint=None
 ):
     trainds = load_dataset_2(seed, is_train=True, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
     valds = load_dataset_2(seed, is_train=False, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
@@ -108,6 +109,7 @@ def train_dataset_2(
         verbose=True,
         model_name=model_name,
         freeze_features=freeze_features,
+        starting_checkpoint=starting_checkpoint
     )
 
     wandb.save(f"{checkpointpath}*", base_path=checkpointdir)
@@ -135,7 +137,8 @@ def train_dataset_3(
     max_epochs=30,
     flipped=0,
     is_inverted=False,
-    is_binary=False
+    is_binary=False,
+    starting_checkpoint=None
 ):
     msks = None
 
@@ -162,6 +165,7 @@ def train_dataset_3(
         verbose=True,
         model_name=model_name,
         freeze_features=freeze_features,
+        starting_checkpoint=starting_checkpoint
     )
 
     wandb.save(f"{checkpointpath}*", base_path=checkpointdir)
@@ -189,7 +193,7 @@ def evaluate_dataset_1(
         ds,
         batch_size=MAX_BATCH,
         shuffle=False,
-        num_workers=1
+        num_workers=0,
     )
 
     aggregated_preds = []
@@ -292,6 +296,8 @@ def main():
                         help='Freeze network parameters (1 to freeze, 0 to not freeze)')
     parser.add_argument('--inverted', dest='inverted', type=int, default=0, required=False)
     parser.add_argument('--binary', dest='binary', type=int, default=0, required=False)
+    parser.add_argument('--checkpoint', dest='checkpoint', type=str, default="none", required=False,
+                        help='Checkpoint')
     args = parser.parse_args()
 
     for dirname in ['checkpoints', 'logs']:
@@ -336,7 +342,8 @@ def main():
             max_epochs=args.max_epochs,
             flipped=args.flipped,
             is_inverted=args.inverted==1,
-            is_binary=args.binary==1
+            is_binary=args.binary==1,
+            checkpoint=args.checkpoint if args.checkpoint != "none" else None
         )
     if args.dataset == 3:
         train_dataset_3(
@@ -354,7 +361,8 @@ def main():
             max_epochs=args.max_epochs,
             flipped=args.flipped,
             is_inverted=args.inverted==1,
-            is_binary=args.binary==1
+            is_binary=args.binary==1,
+            checkpoint=args.checkpoint if args.checkpoint != "none" else None
         )
 
 if __name__ == "__main__":
