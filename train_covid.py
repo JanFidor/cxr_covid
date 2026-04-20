@@ -21,14 +21,6 @@ import random
 import numpy as np
 
 from models import CXRClassifier
-from datasets import (
-    GitHubCOVIDDataset,
-    BIMCVCOVIDDataset,
-    ChestXray14Dataset,
-    PadChestDataset,
-    BIMCVNegativeDataset, 
-    DomainConfoundedDataset
-)
 from models.cxrclassifier import log_confusion_matrix
 from load_data import load_dataset_1, load_dataset_2, load_dataset_3
 from logger import initialize_wandb
@@ -89,6 +81,10 @@ def train_dataset_2(
     lr=0.01,
     weight_decay=1e-4,
     max_epochs=30,
+    flipped=0,
+    is_inverted=False,
+    is_binary=False,
+    starting_checkpoint=None
 ):
     trainds = load_dataset_2(seed, is_train=True, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
     valds = load_dataset_2(seed, is_train=False, augments_name=augments_name, preprocessing=preprocessing, split_name=split_name)
@@ -113,11 +109,18 @@ def train_dataset_2(
         verbose=True,
         model_name=model_name,
         freeze_features=freeze_features,
+        starting_checkpoint=starting_checkpoint
     )
 
-    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, epoch=max_epochs)
-
     wandb.save(f"{checkpointpath}*", base_path=checkpointdir)
+
+    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=False, is_cut=classifier.is_cut)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, None, max_epochs, is_best=False, is_cut=classifier.is_cut, )
+    bestpath = f"{checkpointpath}.best_auroc"
+    classifier.load_checkpoint(bestpath)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, split_name, max_epochs, is_best=True, is_cut=classifier.is_cut)
+    evaluate_dataset_1(seed, classifier.model, preprocessing, None, max_epochs, is_best=True, is_cut=classifier.is_cut)
+    
 
 def train_dataset_3(
     experiment_name,
@@ -134,7 +137,8 @@ def train_dataset_3(
     max_epochs=30,
     flipped=0,
     is_inverted=False,
-    is_binary=False
+    is_binary=False,
+    starting_checkpoint=None
 ):
     msks = None
 
@@ -161,6 +165,7 @@ def train_dataset_3(
         verbose=True,
         model_name=model_name,
         freeze_features=freeze_features,
+        starting_checkpoint=starting_checkpoint
     )
 
     wandb.save(f"{checkpointpath}*", base_path=checkpointdir)
@@ -186,12 +191,12 @@ def evaluate_dataset_1(
     is_binary=False,
 ):  
     model.eval()
-    ds = load_dataset_1(seed, fold='test', preprocessing=preprocessing, split_name=split_name, masks=masks, is_inverted=is_inverted, is_binary=is_binary)
+    ds = load_dataset_1(seed, fold='test', preprocessing=preprocessing, split_name=split_name)
     dl = torch.utils.data.DataLoader(
         ds,
         batch_size=MAX_BATCH,
         shuffle=False,
-        num_workers=1
+        num_workers=0,
     )
 
     aggregated_preds = []
@@ -221,13 +226,14 @@ def evaluate_dataset_1(
             # Only keep COVID predictions (last column)
             covid_outputs = outputs[:, -1].detach().cpu()
             covid_labels = labels[:, -1].detach().cpu().int()
+            probs = torch.nn.functional.sigmoid(covid_outputs)
             predictions = (covid_outputs > 0).int()
 
             aggregated_preds.extend(predictions.numpy())
             aggregated_labels.extend(covid_labels.numpy())
             
             # Update metrics
-            auroc.update(covid_outputs, covid_labels)
+            auroc.update(probs, covid_labels)
             precision.update(predictions, covid_labels)
             recall.update(predictions, covid_labels)
             f1.update(predictions, covid_labels)
@@ -293,6 +299,8 @@ def main():
                         help='Freeze network parameters (1 to freeze, 0 to not freeze)')
     parser.add_argument('--inverted', dest='inverted', type=int, default=0, required=False)
     parser.add_argument('--binary', dest='binary', type=int, default=0, required=False)
+    parser.add_argument('--checkpoint', dest='checkpoint', type=str, default="none", required=False,
+                        help='Checkpoint')
     args = parser.parse_args()
 
     for dirname in ['checkpoints', 'logs']:
@@ -335,6 +343,10 @@ def main():
             lr=args.lr,
             weight_decay=args.weight_decay,
             max_epochs=args.max_epochs,
+            flipped=args.flipped,
+            is_inverted=args.inverted==1,
+            is_binary=args.binary==1,
+            starting_checkpoint=args.checkpoint if args.checkpoint != "none" else None
         )
     if args.dataset == 3:
         train_dataset_3(
@@ -352,7 +364,8 @@ def main():
             max_epochs=args.max_epochs,
             flipped=args.flipped,
             is_inverted=args.inverted==1,
-            is_binary=args.binary==1
+            is_binary=args.binary==1,
+            starting_checkpoint=args.checkpoint if args.checkpoint != "none" else None
         )
 
 if __name__ == "__main__":

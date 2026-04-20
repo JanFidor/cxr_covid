@@ -2,6 +2,7 @@
 import json
 import pandas
 import os
+import tqdm
 series_description_map = {
         'TORAX AP': 'AP',
         'PORTATIL': 'AP',
@@ -23,6 +24,8 @@ series_description_map = {
         'TORAX LAT': 'LAT',
         'TÓRAX AP H': 'AP SUPINE',
         'TÒRAX AP': 'AP',
+        'TóRAX AP': 'AP',
+        'TÓRAX AP': 'AP',
         'TORAX PORTATIL': 'AP',
         'DEC. SUPINO AP': 'AP SUPINE',
         'SUPINE AP': 'AP SUPINE',
@@ -48,12 +51,17 @@ series_description_map = {
         'W033 TÓRAX PA *': 'PA',
         'TÓRAX PA': 'PA',
         'TÃ²RAX AP': 'PA',
-        'RX TORAX  PA Y LAT': 'UNK',
+        'RX TORAX PA Y LAT': 'UNK',
         'AP': 'AP', 
         'T035 TÓRAX PA': 'PA', 
         'RX TORAX, PA O AP': 'UNK', 
+        'RX TÓRAX, PA O AP': 'UNK', 
         'W033 TÓRAX PA': 'PA', 
-        'TORAX  PA': 'PA'}
+        'TORAX PA': 'PA',
+        'UNK': 'UNK',
+        'TORAX NIÑO AP': 'UNK',
+        "BUCKY AP": 'AP'
+        }
 
 ENFORCE_LATERAL = [
         "bimcv+/sub-S04079/ses-E08254/mod-rx/sub-S04079_ses-E08254_acq-2_run-1_bp-chest_vp-pa_dx.png",
@@ -96,94 +104,99 @@ def main():
     data = {}
     series_descriptions = set()
     idx = -1 
-    for _, row in patientdf.iterrows():
+    for _, row in tqdm.tqdm(patientdf.iterrows()):
         subject = row.participant 
         modalities = row.modality_dicom
         modalities = eval(modalities)
         if 'CR' in modalities or 'DX' in modalities:
-            contents = os.listdir(os.path.join(datapath, subject))
+            try:
+                contents = os.listdir(os.path.join(datapath, subject))
+            except:
+                continue
             for sessionfile in contents:
                 if os.path.isdir(os.path.join(datapath, subject, sessionfile)):
                     image_candidates = os.listdir(os.path.join(datapath, subject, sessionfile, 'mod-rx'))
                     for i in image_candidates:
-                        if i.lower().endswith('.png'):
-                            idx += 1
-                            entry = {}
-                            path = os.path.join(datapath, subject, sessionfile, 'mod-rx', i)
-                            entry['path'] = path
-                            entry['participant'] = subject
-                            jsonpath = path[:-4] + '.json'
-                            try:
-                                with open(jsonpath, 'r') as handle:
-                                    metadata = json.load(handle)
-                            except OSError:
-                                entry['projection'] = 'UNK'
-                                data[idx] = entry
-                                break
-                            entry['modality'] = metadata['00080060']['Value'][0]
-                            entry['manufacturer'] = metadata['00080070']['Value'][0]
-                            entry['sex'] = metadata['00100040']['Value'][0]
-                            try:
-                                photometric_interpretation = metadata['00280004']['Value'][0]
-                                entry['photometric_interpretation'] = photometric_interpretation
-                            except KeyError:
-                                print('no photometric_interpretation for: ', path)
-                            try:
-                                entry['rotation'] = metadata['00181140']['Value'][0]
-                                print(entry['rotation'])
-                            except KeyError:
-                                pass
-                            try:
-                                entry['lut'] = metadata['00283010']['Value'][0]['00283006']['Value']
-                                entry['lut_min'] = metadata['00283010']['Value'][0]['00283002']['Value'][1]
+                        try:
+                            if i.lower().endswith('.png'):
+                                idx += 1
+                                entry = {}
+                                path = os.path.join(datapath, subject, sessionfile, 'mod-rx', i)
+                                entry['path'] = path
+                                entry['participant'] = subject
+                                jsonpath = path[:-4] + '.json'
                                 try:
-                                    entry['rescale_slope'] = metadata['00281053']['Value'][0]
-                                    entry['rescale_intercept'] = metadata['00281052']['Value'][0]
+                                    with open(jsonpath, 'r') as handle:
+                                        metadata = json.load(handle)
+                                except OSError:
+                                    entry['projection'] = 'UNK'
+                                    data[idx] = entry
+                                    break
+                                entry['modality'] = metadata['00080060']['Value'][0]
+                                entry['manufacturer'] = metadata['00080070']['Value'][0]
+                                entry['sex'] = metadata['00100040']['Value'][0]
+                                try:
+                                    photometric_interpretation = metadata['00280004']['Value'][0]
+                                    entry['photometric_interpretation'] = photometric_interpretation
+                                except KeyError:
+                                    print('no photometric_interpretation for: ', path)
+                                try:
+                                    entry['rotation'] = metadata['00181140']['Value'][0]
+                                    print(entry['rotation'])
                                 except KeyError:
                                     pass
                                 try:
-                                    entry['bits_stored'] = metadata['00280101']['Value'][0]
-                                except KeyError:
-                                    try: 
-                                        entry['bits_stored'] = metadata['00283010']['Value'][0]['00283002']['Value'][2]
+                                    entry['lut'] = metadata['00283010']['Value'][0]['00283006']['Value']
+                                    entry['lut_min'] = metadata['00283010']['Value'][0]['00283002']['Value'][1]
+                                    try:
+                                        entry['rescale_slope'] = metadata['00281053']['Value'][0]
+                                        entry['rescale_intercept'] = metadata['00281052']['Value'][0]
                                     except KeyError:
                                         pass
+                                    try:
+                                        entry['bits_stored'] = metadata['00280101']['Value'][0]
+                                    except KeyError:
+                                        try: 
+                                            entry['bits_stored'] = metadata['00283010']['Value'][0]['00283002']['Value'][2]
+                                        except KeyError:
+                                            pass
 
-                            except KeyError:
-                                try:
-                                    entry['window_center'] = metadata['00281050']['Value'][0]
-                                    entry['window_width'] = metadata['00281051']['Value'][0]
                                 except KeyError:
-                                    print("No window information for : ", path)
-                            try: 
-                                entry['study_date'] = int(metadata['00080020']['Value'][0])
-                            except KeyError:
-                                pass
-                            try:
-                                entry['study_time'] = float(metadata['00080030']['Value'][0])
-                            except KeyError:
-                                pass
-                            try:
-                                entry['age'] = int(metadata['00101010']['Value'][0][:-1])
-                            except KeyError:
-                                pass
-                            try:
-                                series_description = metadata['0008103E']['Value'][0]
-                            except Exception as e:
+                                    try:
+                                        entry['window_center'] = metadata['00281050']['Value'][0]
+                                        entry['window_width'] = metadata['00281051']['Value'][0]
+                                    except KeyError:
+                                        print("No window information for : ", path)
+                                try: 
+                                    entry['study_date'] = int(metadata['00080020']['Value'][0])
+                                except KeyError:
+                                    pass
                                 try:
-                                    series_description = metadata['00081032']['Value'][0]['00080104']['Value'][0]
+                                    entry['study_time'] = float(metadata['00080030']['Value'][0])
+                                except KeyError:
+                                    pass
+                                try:
+                                    entry['age'] = int(metadata['00101010']['Value'][0][:-1])
+                                except KeyError:
+                                    pass
+                                try:
+                                    series_description = metadata['0008103E']['Value'][0]
                                 except Exception as e:
-                                    raise e
-                            series_description = series_description.upper()
-                            series_descriptions.add(series_description)
-                            projection = series_description_map[series_description]
-                            entry['projection'] = projection
+                                    try:
+                                        series_description = metadata['00081032']['Value'][0]['00080104']['Value'][0]
+                                    except Exception as e:
+                                        series_description = 'UNK'
+                                series_description = series_description.upper()
+                                series_descriptions.add(series_description)
+                                projection = series_description_map.get(' '.join(series_description.split()), 'UNK')
+                                entry['projection'] = projection
 
-                            # these images are manually set to lateral
-                            if path.strip() in ENFORCE_LATERAL:
-                                print("enforcing lateral projection for {:s}".format(path))
-                                entry['projection'] = 'LAT'
-                            data[idx] = entry
+                                # these images are manually set to lateral
+                                if path.strip() in ENFORCE_LATERAL:
+                                    print("enforcing lateral projection for {:s}".format(path))
+                                    entry['projection'] = 'LAT'
+                                data[idx] = entry
+                        except: pass
 
     df = pandas.DataFrame.from_dict(data, orient='index')
     df.to_csv(os.path.join(datapath, 'bimcv+.csv'))

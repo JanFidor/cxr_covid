@@ -183,7 +183,7 @@ class CXRClassifier(object):
 
     def _prepare_gradcams(self, gradcam_layers):
         self.gradcams = [
-            ("eigen_cam", EigenCAM(model=self.model, target_layers=gradcam_layers)),
+            # ("eigen_cam", EigenCAM(model=self.model, target_layers=gradcam_layers)),
             ("grad++_cam", GradCAMPlusPlus(model=self.model, target_layers=gradcam_layers))
         ]
 
@@ -198,7 +198,8 @@ class CXRClassifier(object):
               checkpoint_path='checkpoint.pkl',
               verbose=True,
               model_name=False,
-              freeze_features=False):
+              freeze_features=False,
+              starting_checkpoint=None):
         '''
         Train the classifier to predict the labels in the specified dataset.
         Training will start from the weights in a densenet-121 model pretrained
@@ -228,6 +229,7 @@ class CXRClassifier(object):
         self.checkpoint_path = checkpoint_path
         self.lr = lr
         self.weight_decay = weight_decay
+        self.starting_checkpoint = starting_checkpoint
         
         # Create torch DataLoaders from the training and validation datasets.
         # Necessary for batching and shuffling data.
@@ -235,7 +237,7 @@ class CXRClassifier(object):
             train_dataset,
             batch_size=batch_size,
             shuffle=True,
-            num_workers=1,
+            num_workers=0,
             worker_init_fn=seed_worker,
             generator=self.g,
         )
@@ -243,7 +245,7 @@ class CXRClassifier(object):
                 val_dataset,
                 batch_size=batch_size,
                 shuffle=False,
-                num_workers=1,
+                num_workers=0,
             worker_init_fn=seed_worker,
             generator=self.g,
         )
@@ -263,6 +265,9 @@ class CXRClassifier(object):
         else:
             raise ValueError(f"Model {model_name} not found")
 
+        if self.starting_checkpoint is not None:
+            self.load_checkpoint(self.starting_checkpoint, load_optimizer=False)
+
         # Freeze weights if desired
         if freeze_features:
             for p in self.model.parameters():
@@ -272,9 +277,9 @@ class CXRClassifier(object):
 
         # Define the optimizer. Use SGD with momentum and weight decay.
         self.optimizer = self._get_optimizer(lr, self.weight_decay)
-        # scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer,
-        #         10, # epochs between stepping lr
-        #         gamma=0.1)
+        scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer,
+                5, # epochs between stepping lr
+                gamma=0.1)
         # Begin training. Iterate over each epoch to (i) optimize network and
         # (ii) calculate validation loss.
         best_loss = None 
@@ -297,8 +302,8 @@ class CXRClassifier(object):
                 
             # If the validation loss has not improved, decay the 
             # learning rate
-            # if i_epoch != 0:
-            #     scheduler.step()
+            if i_epoch != 0:
+                scheduler.step()
 
             # Write information on this epoch to a log.
             logstr = "Epoch {:03d}: ".format(i_epoch) +\
@@ -374,8 +379,8 @@ class CXRClassifier(object):
                 inputs = (2 * inputs - 1.) * 1024
                 inputs = inputs.permute(3, 0, 1, 2)
             inputs = inputs.cuda()
-            labels = labels.cuda().float()[:, -1:]
-            outputs = self.model(inputs)[:, -1:]
+            labels = labels.cuda().float()
+            outputs = self.model(inputs)
 
             # Calculate the loss
             self.optimizer.zero_grad()
@@ -385,13 +390,14 @@ class CXRClassifier(object):
             predictions = (outputs[:,-1] > 0).int()  # Convert logits to predictions
             aggregated_preds.extend(predictions.cpu().detach().numpy())
             aggregated_labels.extend(covid_labels.cpu().detach().numpy())
+            probs = torch.nn.functional.sigmoid(outputs[:,-1]).detach().cpu()
 
-            auroc.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
+            auroc.update(probs, covid_labels.detach().cpu())
 
-            precision.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
-            recall.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
-            f1.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
-            confmat.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
+            precision.update(probs, covid_labels.detach().cpu())
+            recall.update(probs, covid_labels.detach().cpu())
+            f1.update(probs, covid_labels.detach().cpu())
+            confmat.update(probs, covid_labels.detach().cpu())
             
             # update the network's weights
             
@@ -457,16 +463,16 @@ class CXRClassifier(object):
 
             covid_labels = labels.to(torch.int)[:,-1]
             predictions = (outputs[:,-1] > 0).int()  # Convert logits to predictions
-
             aggregated_preds.extend(predictions.cpu().detach().numpy())
             aggregated_labels.extend(covid_labels.cpu().detach().numpy())
+            probs = torch.nn.functional.sigmoid(outputs[:,-1]).detach().cpu()
 
-            auroc.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
-            
-            precision.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
-            recall.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
-            f1.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
-            confmat.update(outputs[:,-1].detach().cpu(), covid_labels.detach().cpu())
+            auroc.update(probs, covid_labels.detach().cpu())
+
+            precision.update(probs, covid_labels.detach().cpu())
+            recall.update(probs, covid_labels.detach().cpu())
+            f1.update(probs, covid_labels.detach().cpu())
+            confmat.update(probs, covid_labels.detach().cpu())
             # Calculate the loss
             batch_loss = self.lossfunc(outputs, labels)
 
@@ -514,9 +520,10 @@ class CXRClassifier(object):
         torch.save(state, checkpoint_path)
 
     def _get_optimizer(self, lr, weight_decay):
-        opt = torch.optim.AdamW(
+        opt = torch.optim.SGD(
                 filter(lambda p: p.requires_grad, self.model.parameters()),
                 lr=lr,
+                momentum=0.9,
                 weight_decay=weight_decay)
         return opt
 
@@ -547,7 +554,7 @@ class CXRClassifier(object):
             dataset,
             batch_size=batch_size,
             shuffle=False,
-            num_workers=1,
+            num_workers=0,
             worker_init_fn=seed_worker,
             generator=self.g,
         )
