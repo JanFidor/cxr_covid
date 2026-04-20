@@ -54,24 +54,24 @@ def create_dataset(args):
     image_paths = list(Path(args.dir_path).rglob("*.png"))
 
     Path(args.outpath).mkdir(parents=True, exist_ok=True)
-    for i, path in enumerate(tqdm.tqdm(image_paths)):
-        try:
-            image = creator.load_image(path)
-            # save_pil(image, i)
-
-            tensor = torch.tensor(image)
-            tensor_path = f"{Path(args.outpath, Path(path).stem)}.pt"
-        
-            torch.save(tensor, tensor_path)
-        except:
-            print(f"Broken image: {i + 14985}, {path}")
-
+    with open(f"errors.txt", "w") as f:
+        for i, path in enumerate(tqdm.tqdm(image_paths)):
+            try:
+                image = creator.load_image(path)
+                tensor = torch.tensor(image)
+                
+                tensor_path = f"{Path(args.outpath, Path(path).stem)}.pt"
+            
+                torch.save(tensor, tensor_path)
+            except:
+                save_pil(image, 0)
+                f.write(f"Broken image: {i}, {path}\n")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-p", dest='dir_path', default='padchest', type=str)
-    parser.add_argument("-o", dest='outpath', default='tensor/padchest')
+    parser.add_argument("-p", dest='dir_path', default='tars/covid19_posi', type=str)
+    parser.add_argument("-o", dest='outpath', default='tensor/bimcv+')
     args = parser.parse_args()
 
     create_dataset(args)

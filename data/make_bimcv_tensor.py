@@ -12,7 +12,7 @@ from PIL import Image
 import numpy as np
 
 def save_pil(image, idx):
-    img = image.numpy().transpose((1, 2, 0))  # numpy is [h, w, c] 
+    img = image.numpy().astype(float).transpose((1, 2, 0))  # numpy is [h, w, c] 
     mean = np.array([0.4451, 0.4262, 0.3959])  # mean of your dataset
     std = np.array([0.2411, 0.2403, 0.2466])  # std of your dataset
     img = std * img + mean
@@ -24,19 +24,23 @@ def create_dataset(args):
     image_indices = range(len(creator.df))
 
     Path(args.outpath).mkdir(parents=True, exist_ok=True)
-    for idx in tqdm.tqdm(image_indices):
-        image, imagename = creator.process_image_by_index(idx)
-        # save_pil(image, idx)
-
-        tensor = torch.tensor(image)
-        tensor_path = f"{Path(args.outpath, Path(imagename).stem)}.pt"
-    
-        torch.save(tensor, tensor_path)
+    with open(f"errors.txt", "w") as f:
+        for idx in tqdm.tqdm(image_indices):
+            try:
+                image, imagename = creator.process_image_by_index(idx)
+                tensor = torch.tensor(image)
+                tensor_path = f"{Path(args.outpath, Path(imagename).stem)}.pt"
+                torch.save(tensor, tensor_path)
+            except:
+                image, imagename = creator.process_image_by_index(idx)
+                print(idx)
+                save_pil(image, 0)
+                f.write(f"Broken image: {imagename}\n")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-p", dest='is_positive', default=False, type=bool)
-    parser.add_argument("-o", dest='outpath', default='tensor/bimcv-')
+    parser.add_argument("-p", dest='is_positive', default=True, type=bool)
+    parser.add_argument("-o", dest='outpath', default='tensor/bimcv+')
     args = parser.parse_args()
 
     create_dataset(args)
